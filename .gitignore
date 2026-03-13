@@ -44,3 +44,4 @@ htmlcov/
 # Temp files
 tmpclaude-*
 nul
+tsconfig.tsbuildinfo
