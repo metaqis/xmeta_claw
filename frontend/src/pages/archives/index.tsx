@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Card, Input, Row, Col, Grid, List, Tag, Image, Select, Space } from 'antd'
-import { FireOutlined } from '@ant-design/icons'
+import { Table, Card, Input, Row, Col, Grid, List, Image, Select } from 'antd'
 import { archiveApi, ArchiveItem, ArchiveParams } from '../../api/archives'
 
 const { useBreakpoint } = Grid
@@ -35,20 +34,13 @@ export default function ArchivesPage() {
       key: 'name',
       ellipsis: true,
       render: (v: string, r: ArchiveItem) => (
-        <a onClick={() => goDetail(r.archive_id)}>{v} {r.is_hot && <FireOutlined style={{ color: '#f5222d' }} />}</a>
+        <a onClick={() => goDetail(r.archive_id)}>{v}</a>
       ),
     },
     { title: '平台', dataIndex: 'platform_name', key: 'platform', width: 100 },
     { title: 'IP', dataIndex: 'ip_name', key: 'ip', width: 120, ellipsis: true },
-    {
-      title: '最低价',
-      dataIndex: 'goods_min_price',
-      key: 'price',
-      width: 100,
-      render: (v: number | null) => v != null ? <span style={{ color: '#f5222d', fontWeight: 600 }}>¥{v}</span> : '-',
-    },
-    { title: '挂单', dataIndex: 'selling_count', key: 'sell', width: 80 },
-    { title: '成交', dataIndex: 'deal_count', key: 'deal', width: 80 },
+    { title: '类型', dataIndex: 'archive_type', key: 'type', width: 120, ellipsis: true },
+    { title: '数量', dataIndex: 'total_goods_count', key: 'count', width: 90 },
   ]
 
   return (
@@ -68,23 +60,10 @@ export default function ArchivesPage() {
               placeholder="排序"
               allowClear
               options={[
-                { label: '价格从高到低', value: 'price_desc' },
-                { label: '价格从低到高', value: 'price_asc' },
                 { label: '最新发行', value: 'time_desc' },
+                { label: '最早发行', value: 'time_asc' },
               ]}
               onChange={(v) => setParams((p) => ({ ...p, sort_by: v, page: 1 }))}
-            />
-          </Col>
-          <Col xs={12} sm={6} md={4}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="筛选"
-              allowClear
-              options={[
-                { label: '热门', value: 'hot' },
-                { label: '全部', value: 'all' },
-              ]}
-              onChange={(v) => setParams((p) => ({ ...p, is_hot: v === 'hot' ? true : undefined, page: 1 }))}
             />
           </Col>
         </Row>
@@ -120,16 +99,11 @@ export default function ArchivesPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.archive_name}
-                    {item.is_hot && <Tag color="red" style={{ marginLeft: 4 }}>热门</Tag>}
                   </div>
                   <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>{item.ip_name} · {item.platform_name}</div>
-                  <Space style={{ marginTop: 8 }}>
-                    {item.goods_min_price != null && (
-                      <span style={{ color: '#f5222d', fontWeight: 600 }}>¥{item.goods_min_price}</span>
-                    )}
-                    <span style={{ color: '#999', fontSize: 12 }}>挂单 {item.selling_count ?? 0}</span>
-                    <span style={{ color: '#999', fontSize: 12 }}>成交 {item.deal_count ?? 0}</span>
-                  </Space>
+                  <div style={{ color: '#999', fontSize: 12, marginTop: 8 }}>
+                    {item.archive_type ?? '-'} · 数量 {item.total_goods_count ?? '-'}
+                  </div>
                 </div>
               </div>
             </Card>

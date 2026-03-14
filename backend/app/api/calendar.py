@@ -1,12 +1,16 @@
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
+import json
+import re
+import html
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from pydantic import BaseModel
+from sqlalchemy.orm import selectinload
+from pydantic import BaseModel, Field
 
 from app.database.db import get_db
-from app.database.models import LaunchCalendar, LaunchDetail, Platform, IP
+from app.database.models import LaunchCalendar, LaunchDetail, Platform, IP, Archive
 from app.api.auth import get_current_user
 
 router = APIRouter(prefix="/calendar", tags=["发行日历"])
@@ -47,8 +51,73 @@ class CalendarDetailResponse(BaseModel):
     img: Optional[str] = None
     priority_purchase_time: Optional[datetime] = None
     context_condition: Optional[str] = None
+    context_condition_text: Optional[str] = None
     status: Optional[str] = None
     raw_json: Optional[str] = None
+    contain_archives: list[dict] = Field(default_factory=list)
+    association_archives: list[dict] = Field(default_factory=list)
+
+
+def _html_to_text(value: Any) -> Optional[str]:
+    if not value or not isinstance(value, str):
+        return None
+    text = value.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+    text = re.sub(r"</p\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip() or None
+
+
+def _parse_raw_detail(raw_json: Optional[str]) -> tuple[list[dict], list[dict]]:
+    if not raw_json:
+        return [], []
+    try:
+        data = json.loads(raw_json)
+    except Exception:
+        return [], []
+
+    def _pick(items: Any) -> list[dict]:
+        if not isinstance(items, list):
+            return []
+        result: list[dict] = []
+        for x in items:
+            if not isinstance(x, dict):
+                continue
+            result.append(
+                {
+                    "id": x.get("id"),
+                    "associated_archive_id": str(x.get("associatedArchiveId")) if x.get("associatedArchiveId") is not None else None,
+                    "type": x.get("type"),
+                    "archive_name": x.get("archiveName"),
+                    "archive_img": x.get("archiveImg"),
+                    "platform_id": x.get("platformId"),
+                    "platform_name": x.get("platformName"),
+                    "platform_img": x.get("platformImg"),
+                    "ip_name": x.get("ipName"),
+                    "ip_avatar": x.get("ipAvatar"),
+                    "is_transfer": x.get("isTransfer"),
+                }
+            )
+        return result
+
+    contain = _pick(data.get("containArchiveList"))
+    association = _pick(data.get("associationArchiveList"))
+    return contain, association
+
+
+async def _attach_archive_total_counts(db: AsyncSession, items: list[dict]):
+    ids = [x.get("associated_archive_id") for x in items if x.get("associated_archive_id")]
+    if not ids:
+        return
+
+    result = await db.execute(
+        select(Archive.archive_id, Archive.total_goods_count).where(Archive.archive_id.in_(ids))
+    )
+    mapping = {row[0]: row[1] for row in result.all()}
+    for x in items:
+        aid = x.get("associated_archive_id")
+        x["total_goods_count"] = mapping.get(aid) if aid else None
 
 
 @router.get("/", response_model=CalendarListResponse)
@@ -62,7 +131,10 @@ async def get_calendar(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    query = select(LaunchCalendar).outerjoin(Platform).outerjoin(IP)
+    query = select(LaunchCalendar).options(
+        selectinload(LaunchCalendar.platform),
+        selectinload(LaunchCalendar.ip),
+    )
     count_query = select(func.count(LaunchCalendar.id))
 
     if date:
@@ -123,8 +195,10 @@ async def get_calendar_detail(
 ):
     result = await db.execute(
         select(LaunchCalendar)
-        .outerjoin(Platform)
-        .outerjoin(IP)
+        .options(
+            selectinload(LaunchCalendar.platform),
+            selectinload(LaunchCalendar.ip),
+        )
         .where(LaunchCalendar.id == calendar_id)
     )
     cal = result.scalar_one_or_none()
@@ -137,6 +211,10 @@ async def get_calendar_detail(
     )
     detail = detail_result.scalar_one_or_none()
 
+    contain_archives, association_archives = _parse_raw_detail(detail.raw_json) if detail else ([], [])
+    await _attach_archive_total_counts(db, contain_archives)
+    await _attach_archive_total_counts(db, association_archives)
+
     return CalendarDetailResponse(
         id=cal.id,
         name=cal.name,
@@ -148,6 +226,9 @@ async def get_calendar_detail(
         img=cal.img,
         priority_purchase_time=detail.priority_purchase_time if detail else None,
         context_condition=detail.context_condition if detail else None,
+        context_condition_text=_html_to_text(detail.context_condition) if detail else None,
         status=detail.status if detail else None,
         raw_json=detail.raw_json if detail else None,
+        contain_archives=contain_archives,
+        association_archives=association_archives,
     )

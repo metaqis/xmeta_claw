@@ -33,8 +33,11 @@ class IP(Base):
     __tablename__ = "ips"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    source_uid = Column(Integer, unique=True, index=True)
+    from_type = Column(Integer, default=1)
     ip_name = Column(String(200), nullable=False)
     ip_avatar = Column(String(500))
+    description = Column(Text)
     platform_id = Column(Integer, ForeignKey("platforms.id"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -85,6 +88,7 @@ class Archive(Base):
 
     archive_id = Column(String(100), primary_key=True)
     archive_name = Column(String(300), nullable=False)
+    total_goods_count = Column(Integer)
     platform_id = Column(Integer, ForeignKey("platforms.id"), index=True)
     ip_id = Column(Integer, ForeignKey("ips.id"), index=True)
     issue_time = Column(DateTime)
@@ -134,4 +138,39 @@ class ArchivePriceHistory(Base):
 
     __table_args__ = (
         Index("ix_price_history_archive_time", "archive_id", "record_time"),
+    )
+
+
+class TaskConfig(Base):
+    __tablename__ = "task_configs"
+
+    task_id = Column(String(50), primary_key=True)
+    name = Column(String(200), nullable=False)
+    description = Column(String(500))
+    schedule_type = Column(String(20), nullable=False, default="interval")
+    interval_seconds = Column(Integer)
+    cron = Column(String(100))
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    runs = relationship("TaskRun", back_populates="task")
+
+
+class TaskRun(Base):
+    __tablename__ = "task_runs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    task_id = Column(String(50), ForeignKey("task_configs.task_id"), index=True, nullable=False)
+    status = Column(String(20), nullable=False)
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    finished_at = Column(DateTime)
+    duration_ms = Column(Integer)
+    message = Column(Text)
+    error = Column(Text)
+
+    task = relationship("TaskConfig", back_populates="runs")
+
+    __table_args__ = (
+        Index("ix_task_runs_task_started", "task_id", "started_at"),
     )

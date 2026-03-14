@@ -7,6 +7,7 @@ import {
   AppstoreOutlined,
   TeamOutlined,
   MenuOutlined,
+  SettingOutlined,
   UserOutlined,
   LogoutOutlined,
 } from '@ant-design/icons'
@@ -20,6 +21,7 @@ const menuItems = [
   { key: '/calendar', icon: <CalendarOutlined />, label: '发行日历' },
   { key: '/archives', icon: <AppstoreOutlined />, label: '藏品库' },
   { key: '/ips', icon: <TeamOutlined />, label: 'IP库' },
+  { key: '/tasks', icon: <SettingOutlined />, label: '任务管理' },
 ]
 
 export default function MainLayout() {

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.database.db import get_db
 from app.database.models import (
-    LaunchCalendar, Archive, ArchiveMarket, IP, Platform
+    LaunchCalendar, Archive, IP, Platform
 )
 from app.api.auth import get_current_user
 
@@ -18,13 +18,11 @@ class DashboardStats(BaseModel):
     total_ips: int = 0
     total_platforms: int = 0
     today_launches: int = 0
-    hot_archives: int = 0
 
 
-class TopArchiveItem(BaseModel):
+class RecentArchiveItem(BaseModel):
     archive_id: str
     archive_name: str
-    goods_min_price: float | None = None
     img: str | None = None
 
 
@@ -36,7 +34,7 @@ class TopIPItem(BaseModel):
 
 class DashboardResponse(BaseModel):
     stats: DashboardStats
-    top_price_archives: list[TopArchiveItem] = []
+    recent_archives: list[RecentArchiveItem] = []
     top_ips: list[TopIPItem] = []
 
 
@@ -49,9 +47,6 @@ async def get_dashboard(
     total_archives = (await db.execute(select(func.count(Archive.archive_id)))).scalar() or 0
     total_ips = (await db.execute(select(func.count(IP.id)))).scalar() or 0
     total_platforms = (await db.execute(select(func.count(Platform.id)))).scalar() or 0
-    hot_archives = (await db.execute(
-        select(func.count(Archive.archive_id)).where(Archive.is_hot == True)
-    )).scalar() or 0
 
     # 今日发行
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -67,25 +62,20 @@ async def get_dashboard(
         total_ips=total_ips,
         total_platforms=total_platforms,
         today_launches=today_launches,
-        hot_archives=hot_archives,
     )
 
-    # 价格排行
-    price_result = await db.execute(
-        select(Archive, ArchiveMarket.goods_min_price)
-        .join(ArchiveMarket, Archive.archive_id == ArchiveMarket.archive_id)
-        .where(ArchiveMarket.goods_min_price.isnot(None))
-        .order_by(ArchiveMarket.goods_min_price.desc())
+    recent_result = await db.execute(
+        select(Archive)
+        .order_by(Archive.issue_time.desc().nullslast())
         .limit(10)
     )
-    top_price = [
-        TopArchiveItem(
-            archive_id=row[0].archive_id,
-            archive_name=row[0].archive_name,
-            goods_min_price=row[1],
-            img=row[0].img,
+    recent_archives = [
+        RecentArchiveItem(
+            archive_id=a.archive_id,
+            archive_name=a.archive_name,
+            img=a.img,
         )
-        for row in price_result.all()
+        for a in recent_result.scalars().all()
     ]
 
     # 热门IP
@@ -101,4 +91,4 @@ async def get_dashboard(
         for row in ip_result.all()
     ]
 
-    return DashboardResponse(stats=stats, top_price_archives=top_price, top_ips=top_ips)
+    return DashboardResponse(stats=stats, recent_archives=recent_archives, top_ips=top_ips)

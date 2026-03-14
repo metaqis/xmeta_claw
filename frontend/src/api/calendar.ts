@@ -30,8 +30,41 @@ export interface CalendarParams {
   page_size?: number
 }
 
+export interface CalendarRelatedArchiveItem {
+  id: number | null
+  associated_archive_id: string | null
+  type: number | null
+  archive_name: string | null
+  archive_img: string | null
+  total_goods_count?: number | null
+  platform_id: number | null
+  platform_name: string | null
+  platform_img: string | null
+  ip_name: string | null
+  ip_avatar: string | null
+  is_transfer: boolean | null
+}
+
+export interface CalendarDetail {
+  id: number
+  name: string
+  sell_time: string | null
+  price: number | null
+  count: number | null
+  platform_name: string | null
+  ip_name: string | null
+  img: string | null
+  priority_purchase_time: string | null
+  context_condition: string | null
+  context_condition_text: string | null
+  status: string | null
+  raw_json: string | null
+  contain_archives: CalendarRelatedArchiveItem[]
+  association_archives: CalendarRelatedArchiveItem[]
+}
+
 export const calendarApi = {
   list: (params: CalendarParams): Promise<CalendarListResponse> =>
     request.get('/calendar/', { params }),
-  detail: (id: number): Promise<any> => request.get(`/calendar/${id}`),
+  detail: (id: number): Promise<CalendarDetail> => request.get(`/calendar/${id}`),
 }

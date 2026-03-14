@@ -2,6 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from app.database.db import get_db
@@ -42,6 +43,7 @@ async def get_ips(
             IP,
             func.count(Archive.archive_id).label("archive_count"),
         )
+        .options(selectinload(IP.platform))
         .outerjoin(Platform, IP.platform_id == Platform.id)
         .outerjoin(Archive, Archive.ip_id == IP.id)
         .group_by(IP.id, Platform.id)

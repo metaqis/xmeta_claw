@@ -5,13 +5,11 @@ export interface DashboardStats {
   total_ips: number
   total_platforms: number
   today_launches: number
-  hot_archives: number
 }
 
-export interface TopArchiveItem {
+export interface RecentArchiveItem {
   archive_id: string
   archive_name: string
-  goods_min_price: number | null
   img: string | null
 }
 
@@ -23,7 +21,7 @@ export interface TopIPItem {
 
 export interface DashboardResponse {
   stats: DashboardStats
-  top_price_archives: TopArchiveItem[]
+  recent_archives: RecentArchiveItem[]
   top_ips: TopIPItem[]
 }
 

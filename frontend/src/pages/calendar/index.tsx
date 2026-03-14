@@ -1,21 +1,86 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Card, Input, DatePicker, Row, Col, Grid, List, Tag, Image, Space } from 'antd'
+import { Table, Card, Input, DatePicker, Row, Col, Grid, List, Tag, Image, Space, Drawer, Descriptions, Typography, Button } from 'antd'
 import dayjs from 'dayjs'
-import { calendarApi, CalendarItem, CalendarParams } from '../../api/calendar'
+import { useNavigate } from 'react-router-dom'
+import { calendarApi, CalendarItem, CalendarParams, CalendarDetail, CalendarRelatedArchiveItem } from '../../api/calendar'
 
 const { useBreakpoint } = Grid
+const { Text, Paragraph } = Typography
 
 export default function CalendarPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const navigate = useNavigate()
 
   const [params, setParams] = useState<CalendarParams>({ page: 1, page_size: 20 })
+  const [open, setOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['calendar', params],
     queryFn: () => calendarApi.list(params),
   })
+
+  const { data: detail, isFetching: detailLoading, refetch: refetchDetail } = useQuery({
+    queryKey: ['calendarDetail', selectedId],
+    queryFn: () => calendarApi.detail(selectedId as number),
+    enabled: selectedId != null && open,
+  })
+
+  const openDetail = (id: number) => {
+    setSelectedId(id)
+    setOpen(true)
+  }
+
+  const relatedColumns = useMemo(
+    () => [
+      {
+        title: '藏品',
+        key: 'archive',
+        render: (_: any, r: CalendarRelatedArchiveItem) => (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {r.archive_img ? <Image src={r.archive_img} width={40} height={40} style={{ borderRadius: 6, objectFit: 'cover' }} /> : null}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 320 }}>
+                {r.archive_name || '-'}
+              </div>
+              <Text type="secondary">{r.associated_archive_id || '-'}</Text>
+            </div>
+          </div>
+        ),
+      },
+      {
+        title: '数量',
+        dataIndex: 'total_goods_count',
+        key: 'count',
+        width: 100,
+        render: (v: number | null) => v != null ? v : '-',
+      },
+      {
+        title: '可转赠',
+        dataIndex: 'is_transfer',
+        key: 'transfer',
+        width: 90,
+        render: (v: boolean | null) => v ? <Tag color="green">是</Tag> : <Tag>否</Tag>,
+      },
+      {
+        title: '操作',
+        key: 'action',
+        width: 110,
+        render: (_: any, r: CalendarRelatedArchiveItem) => (
+          <Button
+            size="small"
+            disabled={!r.associated_archive_id}
+            onClick={() => r.associated_archive_id && navigate(`/archives/${r.associated_archive_id}`)}
+          >
+            查看
+          </Button>
+        ),
+      },
+    ],
+    [navigate],
+  )
 
   const columns = [
     {
@@ -87,7 +152,7 @@ export default function CalendarPage() {
             size: 'small',
           }}
           renderItem={(item: CalendarItem) => (
-            <Card size="small" style={{ marginBottom: 8 }}>
+            <Card size="small" style={{ marginBottom: 8 }} onClick={() => openDetail(item.id)} hoverable>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <div style={{ display: 'flex', gap: 12 }}>
                   {item.img && (
@@ -118,6 +183,9 @@ export default function CalendarPage() {
           columns={columns}
           rowKey="id"
           size="small"
+          onRow={(record) => ({
+            onClick: () => openDetail(record.id),
+          })}
           pagination={{
             total: data?.total ?? 0,
             current: params.page,
@@ -128,6 +196,68 @@ export default function CalendarPage() {
           }}
         />
       )}
+
+      <Drawer
+        title="发行详情"
+        open={open}
+        onClose={() => setOpen(false)}
+        width={isMobile ? '100%' : 980}
+        extra={
+          <Button loading={detailLoading} onClick={() => refetchDetail()}>
+            刷新
+          </Button>
+        }
+      >
+        {detail ? (
+          <div>
+            <Descriptions bordered size="small" column={isMobile ? 1 : 2}>
+              <Descriptions.Item label="名称">{detail.name}</Descriptions.Item>
+              <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
+              <Descriptions.Item label="发售时间">
+                {detail.sell_time ? dayjs(detail.sell_time).format('YYYY-MM-DD HH:mm:ss') : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="平台/IP">
+                {(detail.platform_name || '-')}/{(detail.ip_name || '-')}
+              </Descriptions.Item>
+              <Descriptions.Item label="价格/数量">
+                {(detail.price != null ? `¥${detail.price}` : '-')}/{(detail.count ?? '-')}
+              </Descriptions.Item>
+              <Descriptions.Item label="状态">{detail.status ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="优先购时间">
+                {detail.priority_purchase_time ? dayjs(detail.priority_purchase_time).format('YYYY-MM-DD HH:mm:ss') : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="图片">
+                {detail.img ? <Image src={detail.img} width={80} height={80} style={{ borderRadius: 8, objectFit: 'cover' }} /> : '-'}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <div style={{ marginTop: 16, fontWeight: 600, marginBottom: 8 }}>购买阶段说明</div>
+            <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
+              {detail.context_condition_text || '-'}
+            </Paragraph>
+
+            <div style={{ marginTop: 16, fontWeight: 600, marginBottom: 8 }}>包含藏品</div>
+            <Table
+              rowKey={(r: CalendarRelatedArchiveItem) => `${r.id ?? ''}-${r.associated_archive_id ?? ''}`}
+              dataSource={detail.contain_archives}
+              columns={relatedColumns as any}
+              size="small"
+              pagination={false}
+            />
+
+            <div style={{ marginTop: 16, fontWeight: 600, marginBottom: 8 }}>关联藏品</div>
+            <Table
+              rowKey={(r: CalendarRelatedArchiveItem) => `${r.id ?? ''}-${r.associated_archive_id ?? ''}-a`}
+              dataSource={detail.association_archives}
+              columns={relatedColumns as any}
+              size="small"
+              pagination={false}
+            />
+          </div>
+        ) : (
+          <Text type="secondary">选择一条发行记录查看详情</Text>
+        )}
+      </Drawer>
     </div>
   )
 }
