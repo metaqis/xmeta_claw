@@ -16,6 +16,7 @@ class IPItem(BaseModel):
     id: int
     ip_name: str
     ip_avatar: Optional[str] = None
+    fans_count: Optional[int] = None
     platform_id: Optional[int] = None
     platform_name: Optional[str] = None
     archive_count: int = 0
@@ -74,6 +75,7 @@ async def get_ips(
             id=ip_obj.id,
             ip_name=ip_obj.ip_name,
             ip_avatar=ip_obj.ip_avatar,
+            fans_count=ip_obj.fans_count,
             platform_id=ip_obj.platform_id,
             platform_name=ip_obj.platform.name if ip_obj.platform else None,
             archive_count=archive_count,

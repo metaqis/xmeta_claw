@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user, require_admin
 from app.database.db import get_db
-from app.database.models import TaskConfig, TaskRun
+from app.database.models import TaskConfig, TaskRun, TaskRunLog
 from app.scheduler.tasks import (
     TASK_DEFINITIONS,
     apply_task_config,
+    cancel_task_run,
     create_task_run,
     run_task_by_run_id,
     scheduler,
@@ -71,9 +72,29 @@ class TaskRunResponse(BaseModel):
     run_id: int
 
 
+class TaskCancelResponse(BaseModel):
+    message: str
+
+
 class TaskRunsResponse(BaseModel):
     total: int
     items: list[TaskRunItem]
+
+
+class TaskRunLogItem(BaseModel):
+    id: int
+    run_id: int
+    level: str
+    message: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TaskRunLogsResponse(BaseModel):
+    total: int
+    items: list[TaskRunLogItem]
 
 
 @router.get("/", response_model=TaskListResponse)
@@ -185,6 +206,21 @@ async def run_task_now(
     return TaskRunResponse(message="任务已触发", run_id=run_id)
 
 
+@router.post("/{task_id}/runs/{run_id}/cancel", response_model=TaskCancelResponse)
+async def cancel_task(
+    task_id: str,
+    run_id: int,
+    _admin=Depends(require_admin),
+):
+    if task_id not in TASK_DEFINITIONS:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    ok = await cancel_task_run(task_id, run_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="运行记录不存在或不可停止")
+    return TaskCancelResponse(message="已请求停止")
+
+
 @router.get("/{task_id}/runs", response_model=TaskRunsResponse)
 async def list_task_runs(
     task_id: str,
@@ -210,3 +246,35 @@ async def list_task_runs(
     )
     runs = result.scalars().all()
     return TaskRunsResponse(total=total, items=[TaskRunItem.model_validate(r) for r in runs])
+
+
+@router.get("/{task_id}/runs/{run_id}/logs", response_model=TaskRunLogsResponse)
+async def list_task_run_logs(
+    task_id: str,
+    run_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    if task_id not in TASK_DEFINITIONS:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    run = await db.get(TaskRun, run_id)
+    if not run or run.task_id != task_id:
+        raise HTTPException(status_code=404, detail="运行记录不存在")
+
+    total_result = await db.execute(
+        select(func.count(TaskRunLog.id)).where(TaskRunLog.run_id == run_id)
+    )
+    total = total_result.scalar() or 0
+
+    result = await db.execute(
+        select(TaskRunLog)
+        .where(TaskRunLog.run_id == run_id)
+        .order_by(TaskRunLog.created_at.asc(), TaskRunLog.id.asc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    logs = result.scalars().all()
+    return TaskRunLogsResponse(total=total, items=[TaskRunLogItem.model_validate(x) for x in logs])

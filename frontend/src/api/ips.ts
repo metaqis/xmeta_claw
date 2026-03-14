@@ -4,6 +4,7 @@ export interface IPItem {
   id: number
   ip_name: string
   ip_avatar: string | null
+  fans_count: number | null
   platform_id: number | null
   platform_name: string | null
   archive_count: number

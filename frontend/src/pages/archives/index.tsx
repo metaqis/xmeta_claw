@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Card, Input, Row, Col, Grid, List, Image, Select } from 'antd'
+import { Table, Card, Input, Row, Col, Grid, List, Image, Select, Button, Space, Modal, message } from 'antd'
 import { archiveApi, ArchiveItem, ArchiveParams } from '../../api/archives'
+import { tasksApi } from '../../api/tasks'
+import { useAuthStore } from '../../store/auth'
 
 const { useBreakpoint } = Grid
 
@@ -10,8 +12,11 @@ export default function ArchivesPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const navigate = useNavigate()
+  const role = useAuthStore((s) => s.role)
+  const isAdmin = role === 'admin'
 
   const [params, setParams] = useState<ArchiveParams>({ page: 1, page_size: 20 })
+  const [fullCrawlLoading, setFullCrawlLoading] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['archives', params],
@@ -65,6 +70,36 @@ export default function ArchivesPage() {
               ]}
               onChange={(v) => setParams((p) => ({ ...p, sort_by: v, page: 1 }))}
             />
+          </Col>
+          <Col xs={24} sm={6} md={4} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Space>
+              <Button
+                type="primary"
+                disabled={!isAdmin}
+                loading={fullCrawlLoading}
+                onClick={() => {
+                  Modal.confirm({
+                    title: '触发全量爬取？',
+                    content: '将按 UTC 时间范围执行全量爬取，并在后台运行。',
+                    okText: '开始',
+                    cancelText: '取消',
+                    onOk: async () => {
+                      setFullCrawlLoading(true)
+                      try {
+                        const res = await tasksApi.run('full_crawl')
+                        message.success(`已触发全量爬取，run_id=${res.run_id}，可到任务管理查看日志`)
+                      } catch (e: any) {
+                        message.error(e?.response?.data?.detail || '触发失败')
+                      } finally {
+                        setFullCrawlLoading(false)
+                      }
+                    },
+                  })
+                }}
+              >
+                全量爬取
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Card>

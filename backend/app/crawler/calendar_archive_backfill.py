@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from loguru import logger
 from sqlalchemy import select
@@ -145,6 +145,11 @@ async def _fetch_archive_detail(archive_id: str, platform_id: Optional[Any]) -> 
         return None
     data = resp.get("data")
     if isinstance(data, dict):
+        real_id = data.get("archiveId")
+        if real_id is None:
+            return None
+        if str(real_id) != str(archive_id):
+            return None
         return data
     return None
 
@@ -240,6 +245,7 @@ async def backfill_archives_for_calendar_range(
     db: AsyncSession,
     start_date: str,
     end_date: str,
+    on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> int:
     start = datetime.strptime(start_date, "%Y-%m-%d").replace(hour=0, minute=0, second=0)
     end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
@@ -264,6 +270,10 @@ async def backfill_archives_for_calendar_range(
         return 0
 
     created_or_updated = 0
+    processed = 0
+    total = len(refs)
+    if on_progress is not None:
+        await on_progress(0, total)
     for r in refs:
         archive_id = r.get("archive_id")
         if not archive_id:
@@ -276,20 +286,29 @@ async def backfill_archives_for_calendar_range(
             ip_obj = None
             if existing_archive.ip_id is not None:
                 ip_obj = await db.get(IP, existing_archive.ip_id)
-            needs_ip = (ip_obj is None) or (ip_obj.source_uid is None) or (not ip_obj.description)
+            needs_ip = (ip_obj is None) or (ip_obj.source_uid is None) or (not ip_obj.description) or (ip_obj.fans_count is None)
             needs_type = (not existing_archive.archive_type) or (
                 isinstance(existing_archive.archive_type, str) and existing_archive.archive_type.isdigit()
             )
             needs_count = existing_archive.total_goods_count is None
             should_process = needs_ip or needs_type or needs_count
         if not should_process:
+            processed += 1
+            if on_progress is not None and (processed % 20 == 0 or processed == total):
+                await on_progress(processed, total)
             continue
 
         detail = await _fetch_archive_detail(archive_id, r.get("platform_id"))
         if not detail:
+            processed += 1
+            if on_progress is not None and (processed % 20 == 0 or processed == total):
+                await on_progress(processed, total)
             continue
         await _upsert_archive_from_detail(db, detail, r)
         created_or_updated += 1
+        processed += 1
+        if on_progress is not None and (processed % 20 == 0 or processed == total):
+            await on_progress(processed, total)
 
     await db.commit()
     logger.info(f"日历关联藏品补齐完成: 新增/更新 {created_or_updated} 条")

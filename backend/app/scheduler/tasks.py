@@ -1,4 +1,5 @@
 """定时任务调度"""
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Optional
 
@@ -9,32 +10,124 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.crawler.archive_crawler import crawl_archives
+from app.crawler.archive_id_backfill import backfill_archives_by_id_desc, get_max_numeric_archive_id
 from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar_range
-from app.crawler.calendar_crawler import crawl_calendar_for_date
+from app.crawler.calendar_crawler import crawl_calendar_for_date, crawl_calendar_range, crawl_calendar_backward_until_no_data
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
 from app.database.db import async_session
-from app.database.models import TaskConfig, TaskRun
+from app.database.models import TaskConfig, TaskRun, TaskRunLog
 
 scheduler = AsyncIOScheduler()
+_RUNNING_TASKS: Dict[int, asyncio.Task] = {}
 
 
-async def task_crawl_today_calendar(db):
+async def _log_run(db, run_id: int, level: str, message: str):
+    log = TaskRunLog(run_id=run_id, level=level, message=message)
+    db.add(log)
+    run = await db.get(TaskRun, run_id)
+    if run:
+        run.message = message
+        db.add(run)
+    await db.commit()
+
+
+async def task_crawl_today_calendar(db, run_id: int):
     logger.info("定时任务: 爬取今日日历")
     today = datetime.utcnow().strftime("%Y-%m-%d")
     tomorrow = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
+    await _log_run(db, run_id, "info", f"开始爬取日历: {today} ~ {tomorrow}")
     await crawl_calendar_for_date(db, today)
+    await _log_run(db, run_id, "info", f"日历完成: {today}")
     await crawl_calendar_for_date(db, tomorrow)
-    await backfill_archives_for_calendar_range(db, today, tomorrow)
-
-
-async def task_crawl_details(db):
-    logger.info("定时任务: 补全发行详情")
+    await _log_run(db, run_id, "info", f"日历完成: {tomorrow}")
     await crawl_all_missing_details(db)
+    await _log_run(db, run_id, "info", "发行详情补全完成")
+    async def _on_progress(done: int, total: int):
+        await _log_run(db, run_id, "info", f"关联藏品补齐进度: {done}/{total}")
+
+    await backfill_archives_for_calendar_range(db, today, tomorrow, on_progress=_on_progress)
+    await _log_run(db, run_id, "info", "关联藏品补齐完成")
 
 
-async def task_crawl_archives(db):
+async def task_crawl_details(db, run_id: int):
+    logger.info("定时任务: 补全发行详情")
+    await _log_run(db, run_id, "info", "开始补全发行详情")
+    await crawl_all_missing_details(db)
+    await _log_run(db, run_id, "info", "补全发行详情完成")
+
+
+async def task_crawl_archives(db, run_id: int):
     logger.info("定时任务: 爬取藏品列表")
+    await _log_run(db, run_id, "info", "开始更新藏品库")
     await crawl_archives(db)
+    await _log_run(db, run_id, "info", "更新藏品库完成")
+
+
+async def task_full_crawl(db, run_id: int):
+    end = (datetime.utcnow() + timedelta(days=7)).strftime("%Y-%m-%d")
+    await _log_run(db, run_id, "info", f"开始全量爬取: 从 {end} 往前，连续15天无数据停止")
+
+    async def _on_day(date_str: str, fetched: int, inserted: int, streak: int):
+        await _log_run(db, run_id, "info", f"日历 {date_str}: 拉取 {fetched} 新增 {inserted} 连续无数据 {streak}")
+
+    start, end, _ = await crawl_calendar_backward_until_no_data(
+        db,
+        start_date=end,
+        max_no_data_days=15,
+        on_day_done=_on_day,
+    )
+    await _log_run(db, run_id, "info", f"日历倒序爬取完成: {start} ~ {end}")
+    await crawl_all_missing_details(db)
+    await _log_run(db, run_id, "info", "发行详情补全完成")
+    async def _on_progress(done: int, total: int):
+        await _log_run(db, run_id, "info", f"关联藏品补齐进度: {done}/{total}")
+
+    await backfill_archives_for_calendar_range(db, start, end, on_progress=_on_progress)
+    await _log_run(db, run_id, "info", "关联藏品补齐完成")
+    await crawl_archives(db)
+    await _log_run(db, run_id, "info", "藏品库更新完成")
+
+
+async def task_recent_7d_crawl(db, run_id: int):
+    today = datetime.utcnow()
+    start = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+    end = today.strftime("%Y-%m-%d")
+    await _log_run(db, run_id, "info", f"开始近7天爬取: {start} ~ {end}")
+
+    async def _on_day(date_str: str, inserted: int):
+        await _log_run(db, run_id, "info", f"日历 {date_str}: 新增 {inserted}")
+
+    await crawl_calendar_range(db, start, end, on_day_done=_on_day)
+    await _log_run(db, run_id, "info", "日历范围爬取完成")
+    await crawl_all_missing_details(db)
+    await _log_run(db, run_id, "info", "发行详情补全完成")
+    async def _on_progress(done: int, total: int):
+        await _log_run(db, run_id, "info", f"关联藏品补齐进度: {done}/{total}")
+
+    await backfill_archives_for_calendar_range(db, start, end, on_progress=_on_progress)
+    await _log_run(db, run_id, "info", "关联藏品补齐完成")
+    await crawl_archives(db)
+    await _log_run(db, run_id, "info", "藏品库更新完成")
+
+
+async def task_archive_id_backfill(db, run_id: int):
+    max_id = await get_max_numeric_archive_id(db)
+    if max_id is None:
+        await _log_run(db, run_id, "info", "无可用藏品ID，跳过")
+        return
+    await _log_run(db, run_id, "info", f"开始藏品ID补齐: {max_id} -> 15000")
+
+    async def _on_progress(scanned: int, created: int, total: int):
+        await _log_run(db, run_id, "info", f"藏品ID补齐进度: 扫描 {scanned}/{total} 新增 {created}")
+
+    await backfill_archives_by_id_desc(
+        db,
+        start_id=max_id,
+        stop_id=15000,
+        platform_id=741,
+        on_progress=_on_progress,
+    )
+    await _log_run(db, run_id, "info", "藏品ID补齐完成")
 
 
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
@@ -58,6 +151,30 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_schedule_type": "interval",
         "default_interval_seconds": 6 * 60 * 60,
         "func": task_crawl_archives,
+    },
+    "full_crawl": {
+        "name": "全量爬取",
+        "description": "按时间范围全量爬取日历、详情、藏品并补齐关联",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_full_crawl,
+    },
+    "recent_7d_crawl": {
+        "name": "近7天爬取",
+        "description": "重跑近7天日历、详情并补齐关联藏品",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_recent_7d_crawl,
+    },
+    "archive_id_backfill": {
+        "name": "藏品ID补齐",
+        "description": "从数据库最大 archiveId 往前补齐到 15000（跳过已存在）",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_archive_id_backfill,
     },
 }
 
@@ -86,7 +203,7 @@ async def ensure_task_configs():
                 schedule_type=meta["default_schedule_type"],
                 interval_seconds=meta.get("default_interval_seconds"),
                 cron=meta.get("default_cron"),
-                enabled=True,
+                enabled=meta.get("default_enabled", True),
             )
             db.add(cfg)
         await db.commit()
@@ -104,15 +221,64 @@ async def create_task_run(task_id: str) -> int:
         return run.id
 
 
+async def cancel_task_run(task_id: str, run_id: int) -> bool:
+    async with async_session() as db:
+        run = await db.get(TaskRun, run_id)
+        if not run or run.task_id != task_id:
+            return False
+        if run.status in ("success", "failed", "cancelled"):
+            return False
+
+        now = datetime.utcnow()
+        if run.status == "queued":
+            run.status = "cancelled"
+            run.finished_at = now
+            run.duration_ms = int((now - run.started_at).total_seconds() * 1000) if run.started_at else None
+            run.message = "已停止"
+            db.add(TaskRunLog(run_id=run_id, level="warn", message="任务已停止"))
+            db.add(run)
+            await db.commit()
+            return True
+
+        run.status = "cancelling"
+        run.message = "停止中"
+        db.add(TaskRunLog(run_id=run_id, level="warn", message="请求停止任务"))
+        db.add(run)
+        await db.commit()
+
+    task = _RUNNING_TASKS.get(run_id)
+    if task and not task.done():
+        task.cancel()
+        return True
+    return True
+
+
 async def run_task_by_run_id(task_id: str, run_id: int):
     if task_id not in TASK_DEFINITIONS:
         raise ValueError("未知任务")
 
     started_at = datetime.utcnow()
     async with async_session() as db:
+        current_task = asyncio.current_task()
+        if current_task:
+            _RUNNING_TASKS[run_id] = current_task
         run = await db.get(TaskRun, run_id)
         if not run or run.task_id != task_id:
             raise ValueError("运行记录不存在")
+
+        if run.status == "cancelled":
+            _RUNNING_TASKS.pop(run_id, None)
+            return
+        if run.status == "cancelling":
+            run.status = "cancelled"
+            run.finished_at = datetime.utcnow()
+            run.duration_ms = int((run.finished_at - started_at).total_seconds() * 1000)
+            run.message = "已停止"
+            db.add(TaskRunLog(run_id=run_id, level="warn", message="任务已停止"))
+            db.add(run)
+            await db.commit()
+            _RUNNING_TASKS.pop(run_id, None)
+            return
 
         run.status = "running"
         run.started_at = started_at
@@ -120,15 +286,23 @@ async def run_task_by_run_id(task_id: str, run_id: int):
         await db.commit()
 
         try:
-            task_func: Callable[[Any], Awaitable[None]] = TASK_DEFINITIONS[task_id]["func"]
-            await task_func(db)
+            task_func: Callable[[Any, int], Awaitable[None]] = TASK_DEFINITIONS[task_id]["func"]
+            await task_func(db, run_id)
             run.status = "success"
-            run.message = "ok"
+            if not run.message:
+                run.message = "success"
+        except asyncio.CancelledError:
+            run.status = "cancelled"
+            run.message = "已停止"
+            db.add(run)
+            await _log_run(db, run_id, "warn", "任务已停止")
         except Exception as e:
             run.status = "failed"
             run.error = str(e)
+            await _log_run(db, run_id, "error", f"失败: {run.error}")
             logger.exception(f"任务执行失败: {task_id}")
         finally:
+            _RUNNING_TASKS.pop(run_id, None)
             finished_at = datetime.utcnow()
             run.finished_at = finished_at
             run.duration_ms = int((finished_at - started_at).total_seconds() * 1000)

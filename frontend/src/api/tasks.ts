@@ -44,9 +44,26 @@ export interface TaskRunResponse {
   run_id: number
 }
 
+export interface TaskCancelResponse {
+  message: string
+}
+
 export interface TaskRunsResponse {
   total: number
   items: TaskRunItem[]
+}
+
+export interface TaskRunLogItem {
+  id: number
+  run_id: number
+  level: string
+  message: string
+  created_at: string
+}
+
+export interface TaskRunLogsResponse {
+  total: number
+  items: TaskRunLogItem[]
 }
 
 export const tasksApi = {
@@ -54,7 +71,10 @@ export const tasksApi = {
   update: (taskId: string, data: TaskUpdateRequest): Promise<TaskUpdateResponse> =>
     request.put(`/tasks/${taskId}`, data),
   run: (taskId: string): Promise<TaskRunResponse> => request.post(`/tasks/${taskId}/run`),
+  cancel: (taskId: string, runId: number): Promise<TaskCancelResponse> =>
+    request.post(`/tasks/${taskId}/runs/${runId}/cancel`),
   runs: (taskId: string, page: number, pageSize: number): Promise<TaskRunsResponse> =>
     request.get(`/tasks/${taskId}/runs`, { params: { page, page_size: pageSize } }),
+  logs: (taskId: string, runId: number, page: number, pageSize: number): Promise<TaskRunLogsResponse> =>
+    request.get(`/tasks/${taskId}/runs/${runId}/logs`, { params: { page, page_size: pageSize } }),
 }
-

@@ -26,6 +26,7 @@ export default function IPsPage() {
     },
     { title: 'IP名称', dataIndex: 'ip_name', key: 'name', ellipsis: true },
     { title: '平台', dataIndex: 'platform_name', key: 'platform', width: 120 },
+    { title: '粉丝', dataIndex: 'fans_count', key: 'fans', width: 90 },
     { title: '藏品数', dataIndex: 'archive_count', key: 'count', width: 90, sorter: (a: IPItem, b: IPItem) => a.archive_count - b.archive_count },
   ]
 
@@ -59,7 +60,7 @@ export default function IPsPage() {
               <List.Item.Meta
                 avatar={<Avatar src={item.ip_avatar} size={40}>{!item.ip_avatar ? item.ip_name[0] : ''}</Avatar>}
                 title={item.ip_name}
-                description={`${item.platform_name ?? '未知平台'} · 藏品 ${item.archive_count} 个`}
+                description={`${item.platform_name ?? '未知平台'} · 粉丝 ${item.fans_count ?? '-'} · 藏品 ${item.archive_count} 个`}
               />
             </List.Item>
           )}

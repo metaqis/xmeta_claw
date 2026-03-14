@@ -1,7 +1,7 @@
 """发行日历爬虫（第一阶段：日历基础数据 + 详情合并落库）"""
 import json
 from datetime import datetime, timedelta
-from typing import Any, Optional, Tuple
+from typing import Any, Awaitable, Callable, Optional, Tuple
 
 from loguru import logger
 from sqlalchemy import select
@@ -31,10 +31,11 @@ def _extract_records(resp: dict) -> Tuple[list[dict], Optional[int]]:
     return [], None
 
 
-async def crawl_calendar_for_date(db: AsyncSession, date_str: str):
+async def crawl_calendar_for_date_stats(db: AsyncSession, date_str: str) -> Tuple[int, int]:
     page = 1
     page_size = 50
     inserted = 0
+    fetched = 0
 
     while True:
         resp = await crawler_client.post_safe(
@@ -48,6 +49,7 @@ async def crawl_calendar_for_date(db: AsyncSession, date_str: str):
         if not records:
             break
 
+        fetched += len(records)
         for item in records:
             did_insert = await _upsert_calendar_from_list_item(db, item)
             if did_insert:
@@ -65,6 +67,11 @@ async def crawl_calendar_for_date(db: AsyncSession, date_str: str):
 
     await db.commit()
     logger.info(f"日历 {date_str}: 新增 {inserted} 条")
+    return fetched, inserted
+
+
+async def crawl_calendar_for_date(db: AsyncSession, date_str: str) -> int:
+    _, inserted = await crawl_calendar_for_date_stats(db, date_str)
     return inserted
 
 
@@ -208,7 +215,12 @@ async def _get_or_create_ip(
     return ip_obj
 
 
-async def crawl_calendar_range(db: AsyncSession, start_date: str, end_date: str):
+async def crawl_calendar_range(
+    db: AsyncSession,
+    start_date: str,
+    end_date: str,
+    on_day_done: Callable[[str, int], Awaitable[None]] | None = None,
+):
     start = datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.strptime(end_date, "%Y-%m-%d")
     current = start
@@ -218,7 +230,41 @@ async def crawl_calendar_range(db: AsyncSession, start_date: str, end_date: str)
         date_str = current.strftime("%Y-%m-%d")
         count = await crawl_calendar_for_date(db, date_str)
         total += count
+        if on_day_done is not None:
+            await on_day_done(date_str, count)
         current += timedelta(days=1)
 
     logger.info(f"日历范围爬取完成: {start_date} ~ {end_date}, 共新增 {total} 条")
     return total
+
+
+async def crawl_calendar_backward_until_no_data(
+    db: AsyncSession,
+    start_date: str,
+    max_no_data_days: int = 15,
+    on_day_done: Callable[[str, int, int, int], Awaitable[None]] | None = None,
+) -> Tuple[str, str, int]:
+    current = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = start_date
+    no_data_streak = 0
+    total_inserted = 0
+
+    while True:
+        date_str = current.strftime("%Y-%m-%d")
+        fetched, inserted = await crawl_calendar_for_date_stats(db, date_str)
+        total_inserted += inserted
+
+        if fetched <= 0:
+            no_data_streak += 1
+        else:
+            no_data_streak = 0
+
+        if on_day_done is not None:
+            await on_day_done(date_str, fetched, inserted, no_data_streak)
+
+        if no_data_streak >= max_no_data_days:
+            oldest = (current + timedelta(days=max_no_data_days - 1)).strftime("%Y-%m-%d")
+            logger.info(f"连续 {max_no_data_days} 天无数据，停止向前爬取，最早有效日期约为 {oldest}")
+            return oldest, end_date, total_inserted
+
+        current -= timedelta(days=1)

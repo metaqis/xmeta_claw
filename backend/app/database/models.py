@@ -38,6 +38,7 @@ class IP(Base):
     ip_name = Column(String(200), nullable=False)
     ip_avatar = Column(String(500))
     description = Column(Text)
+    fans_count = Column(Integer)
     platform_id = Column(Integer, ForeignKey("platforms.id"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -173,4 +174,18 @@ class TaskRun(Base):
 
     __table_args__ = (
         Index("ix_task_runs_task_started", "task_id", "started_at"),
+    )
+
+
+class TaskRunLog(Base):
+    __tablename__ = "task_run_logs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, ForeignKey("task_runs.id"), index=True, nullable=False)
+    level = Column(String(20), nullable=False, default="info")
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        Index("ix_task_run_logs_run_created", "run_id", "created_at"),
     )

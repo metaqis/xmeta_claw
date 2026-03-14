@@ -141,7 +141,7 @@ async def _save_archive(db: AsyncSession, item: dict):
     should_fetch_ip = False
     if existing and existing.ip_id is not None:
         ip_obj = await db.get(IP, existing.ip_id)
-        should_fetch_ip = ip_obj is not None and (ip_obj.source_uid is None or not ip_obj.description)
+        should_fetch_ip = ip_obj is not None and (ip_obj.source_uid is None or not ip_obj.description or ip_obj.fans_count is None)
     if should_fetch_type or should_fetch_ip:
         detail = await _fetch_detail()
         type_name = _extract_type_name(detail)

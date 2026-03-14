@@ -16,7 +16,7 @@ import {
 } from 'antd'
 import { EditOutlined, HistoryOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { tasksApi, TaskItem, TaskRunItem } from '../../api/tasks'
+import { tasksApi, TaskItem, TaskRunItem, TaskRunLogItem } from '../../api/tasks'
 import { useAuthStore } from '../../store/auth'
 
 const { Text } = Typography
@@ -33,6 +33,8 @@ function statusTag(status: string) {
   if (status === 'success') return <Tag color="green">成功</Tag>
   if (status === 'failed') return <Tag color="red">失败</Tag>
   if (status === 'running') return <Tag color="blue">运行中</Tag>
+  if (status === 'cancelling') return <Tag color="orange">停止中</Tag>
+  if (status === 'cancelled') return <Tag color="default">已停止</Tag>
   if (status === 'queued') return <Tag color="default">排队中</Tag>
   return <Tag>{status}</Tag>
 }
@@ -48,6 +50,10 @@ export default function TasksPage() {
   const [runsTask, setRunsTask] = useState<TaskItem | null>(null)
   const [runsPage, setRunsPage] = useState(1)
   const [runsPageSize, setRunsPageSize] = useState(20)
+  const [logsOpen, setLogsOpen] = useState(false)
+  const [logsRun, setLogsRun] = useState<TaskRunItem | null>(null)
+  const [logsPage, setLogsPage] = useState(1)
+  const [logsPageSize, setLogsPageSize] = useState(200)
 
   const [form] = Form.useForm()
   const scheduleType = Form.useWatch('schedule_type', form)
@@ -88,6 +94,18 @@ export default function TasksPage() {
     queryFn: () => tasksApi.runs(runsTask!.task_id, runsPage, runsPageSize),
     enabled: runsQueryEnabled,
     refetchInterval: runsQueryEnabled ? 3000 : false,
+  })
+
+  const logsQueryEnabled = logsOpen && !!runsTask && !!logsRun
+  const logsQueryKey = useMemo(
+    () => ['taskRunLogs', runsTask?.task_id, logsRun?.id, logsPage, logsPageSize],
+    [runsTask?.task_id, logsRun?.id, logsPage, logsPageSize],
+  )
+  const { data: logsData, isFetching: logsFetching } = useQuery({
+    queryKey: logsQueryKey,
+    queryFn: () => tasksApi.logs(runsTask!.task_id, logsRun!.id, logsPage, logsPageSize),
+    enabled: logsQueryEnabled,
+    refetchInterval: logsQueryEnabled ? 2000 : false,
   })
 
   const columns = [
@@ -226,10 +244,60 @@ export default function TasksPage() {
       render: (v: number | null) => v != null ? `${v}ms` : '-',
     },
     {
+      title: '消息',
+      dataIndex: 'message',
+      key: 'message',
+      render: (v: string | null) => v ? <Text ellipsis title={v}>{v}</Text> : '-',
+    },
+    {
       title: '错误',
       dataIndex: 'error',
       key: 'error',
       render: (v: string | null) => v ? <Text type="danger" ellipsis title={v}>{v}</Text> : '-',
+    },
+    {
+      title: '日志',
+      key: 'logs',
+      width: 180,
+      render: (_: any, r: TaskRunItem) => (
+        <Space>
+          <Button
+            size="small"
+            onClick={() => {
+              setLogsRun(r)
+              setLogsOpen(true)
+              setLogsPage(1)
+            }}
+          >
+            日志
+          </Button>
+          <Button
+            size="small"
+            danger
+            disabled={!isAdmin || !['running', 'queued', 'cancelling'].includes(r.status)}
+            onClick={() => {
+              if (!runsTask) return
+              Modal.confirm({
+                title: '停止任务？',
+                content: `run_id=${r.id}，将请求停止当前任务运行。`,
+                okText: '停止',
+                cancelText: '取消',
+                onOk: async () => {
+                  try {
+                    await tasksApi.cancel(runsTask.task_id, r.id)
+                    message.success('已请求停止')
+                    await refetchRuns()
+                  } catch (e: any) {
+                    message.error(e?.response?.data?.detail || '停止失败')
+                  }
+                },
+              })
+            }}
+          >
+            停止
+          </Button>
+        </Space>
+      ),
     },
   ]
 
@@ -338,6 +406,46 @@ export default function TasksPage() {
               setRunsPageSize(ps)
             },
           }}
+        />
+      </Drawer>
+
+      <Drawer
+        title={`运行日志 ${logsRun?.id ?? ''}`}
+        open={logsOpen}
+        onClose={() => setLogsOpen(false)}
+        width={900}
+      >
+        <Table
+          rowKey="id"
+          dataSource={(logsData?.items ?? []) as TaskRunLogItem[]}
+          loading={logsFetching}
+          size="small"
+          pagination={{
+            current: logsPage,
+            pageSize: logsPageSize,
+            total: logsData?.total ?? 0,
+            showSizeChanger: true,
+            onChange: (p, ps) => {
+              setLogsPage(p)
+              setLogsPageSize(ps)
+            },
+          }}
+          columns={[
+            {
+              title: '时间',
+              dataIndex: 'created_at',
+              key: 'created_at',
+              width: 180,
+              render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
+            },
+            { title: '级别', dataIndex: 'level', key: 'level', width: 90 },
+            {
+              title: '内容',
+              dataIndex: 'message',
+              key: 'message',
+              render: (v: string) => <Text ellipsis title={v}>{v}</Text>,
+            },
+          ]}
         />
       </Drawer>
     </div>
