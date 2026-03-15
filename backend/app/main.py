@@ -12,6 +12,7 @@ from app.database.db import init_db, async_session
 from app.database.models import User
 from app.api import auth, calendar, archives, ips, stats, crawler, tasks
 from app.scheduler.tasks import start_scheduler, stop_scheduler
+from app.crawler.client import crawler_client
 
 settings = get_settings()
 
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
     await start_scheduler()
     yield
     stop_scheduler()
+    await crawler_client.close()
     logger.info("已关闭")
 
 

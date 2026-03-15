@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Crawler
     CRAWLER_API_BASE: str = "https://api.x-metash.cn"
     CRAWLER_REQUEST_DELAY: float = 0.5
+    CRAWLER_CONCURRENCY: int = 3  # 最大并发请求数
+    CRAWLER_PROXY: str = ""  # 代理地址，如 http://user:pass@host:port
 
     # Admin
     ADMIN_USERNAME: str = "admin"

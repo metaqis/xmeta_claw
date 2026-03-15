@@ -104,42 +104,6 @@ class Archive(Base):
 
     platform = relationship("Platform", back_populates="archives")
     ip = relationship("IP", back_populates="archives")
-    market = relationship("ArchiveMarket", back_populates="archive", uselist=False)
-    price_history = relationship("ArchivePriceHistory", back_populates="archive")
-
-
-class ArchiveMarket(Base):
-    __tablename__ = "archive_market"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    archive_id = Column(String(100), ForeignKey("archives.archive_id"), unique=True, index=True)
-    goods_min_price = Column(Float)
-    want_buy_count = Column(Integer, default=0)
-    selling_count = Column(Integer, default=0)
-    deal_count = Column(Integer, default=0)
-    want_buy_max_price = Column(Float)
-    deal_price = Column(Float)
-    record_time = Column(DateTime, default=datetime.utcnow)
-
-    archive = relationship("Archive", back_populates="market")
-
-
-class ArchivePriceHistory(Base):
-    __tablename__ = "archive_price_history"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    archive_id = Column(String(100), ForeignKey("archives.archive_id"), index=True)
-    min_price = Column(Float)
-    sell_count = Column(Integer, default=0)
-    buy_count = Column(Integer, default=0)
-    deal_count = Column(Integer, default=0)
-    record_time = Column(DateTime, default=datetime.utcnow)
-
-    archive = relationship("Archive", back_populates="price_history")
-
-    __table_args__ = (
-        Index("ix_price_history_archive_time", "archive_id", "record_time"),
-    )
 
 
 class TaskConfig(Base):

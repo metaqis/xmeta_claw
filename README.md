@@ -6,7 +6,7 @@
 
 **后端** Python 3.11 / FastAPI / SQLAlchemy / PostgreSQL / Redis / JWT
 **前端** React 18 / TypeScript / Vite / Ant Design / ECharts / React Query
-**爬虫** httpx / APScheduler / tenacity(重试)
+**爬虫** httpx（连接池 + 并发控制）/ APScheduler / tenacity（指数退避重试）
 
 ## 项目结构
 
@@ -14,49 +14,51 @@
 xmeta_claw/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI 入口
+│   │   ├── main.py                        # FastAPI 入口 + 生命周期管理
 │   │   ├── core/
-│   │   │   ├── config.py        # 配置管理
-│   │   │   └── security.py      # JWT 认证
+│   │   │   ├── config.py                  # Pydantic 配置管理
+│   │   │   └── security.py                # JWT 认证 / 密码哈希
 │   │   ├── database/
-│   │   │   ├── db.py            # 数据库连接
-│   │   │   └── models.py        # ORM 模型
+│   │   │   ├── db.py                      # 异步数据库引擎 + 连接池
+│   │   │   └── models.py                  # ORM 模型(12 张表)
 │   │   ├── api/
-│   │   │   ├── auth.py          # 登录认证
-│   │   │   ├── calendar.py      # 发行日历
-│   │   │   ├── archives.py      # 藏品库
-│   │   │   ├── ips.py           # IP库
-│   │   │   ├── stats.py         # 统计/Dashboard
-│   │   │   └── crawler.py       # 爬虫管理接口
+│   │   │   ├── auth.py                    # 登录认证
+│   │   │   ├── calendar.py                # 发行日历
+│   │   │   ├── archives.py                # 藏品库
+│   │   │   ├── ips.py                     # IP库
+│   │   │   ├── stats.py                   # 统计/Dashboard
+│   │   │   ├── crawler.py                 # 爬虫管理接口
+│   │   │   └── tasks.py                   # 定时任务管理
 │   │   ├── crawler/
-│   │   │   ├── client.py        # HTTP 客户端(重试/日志)
-│   │   │   ├── calendar_crawler.py
-│   │   │   ├── launch_detail_crawler.py
-│   │   │   ├── archive_crawler.py
-│   │   │   └── market_crawler.py
+│   │   │   ├── client.py                  # HTTP 客户端(连接池/UA轮转/反封)
+│   │   │   ├── calendar_crawler.py        # 发行日历爬虫
+│   │   │   ├── launch_detail_crawler.py   # 发行详情爬虫
+│   │   │   ├── archive_crawler.py         # 藏品数据爬虫
+│   │   │   ├── ip_crawler.py              # IP信息爬虫
+│   │   │   ├── calendar_archive_backfill.py # 日历关联藏品补齐
+│   │   │   └── archive_id_backfill.py     # 藏品ID批量补齐
 │   │   └── scheduler/
-│   │       └── tasks.py         # 定时任务(APScheduler)
-│   ├── .env                     # 环境变量
-│   ├── .env.example
+│   │       └── tasks.py                   # APScheduler 定时任务
+│   ├── .env / .env.example
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── main.tsx             # React 入口
+│   │   ├── main.tsx                       # React 入口
 │   │   ├── App.tsx
-│   │   ├── api/                 # API 请求层
-│   │   ├── store/               # Zustand 状态管理
-│   │   ├── router/              # 路由配置
-│   │   ├── layouts/             # 布局(侧边栏/响应式)
+│   │   ├── api/                           # API 请求层(Axios)
+│   │   ├── store/                         # Zustand 状态管理
+│   │   ├── router/                        # React Router 路由
+│   │   ├── layouts/                       # 响应式布局
 │   │   └── pages/
-│   │       ├── login/           # 登录页
-│   │       ├── dashboard/       # 数据概览
-│   │       ├── calendar/        # 发行日历
-│   │       ├── archives/        # 藏品库 + 详情
-│   │       └── ips/             # IP库
-│   ├── index.html
+│   │       ├── login/                     # 登录页
+│   │       ├── dashboard/                 # 数据概览 + ECharts 图表
+│   │       ├── calendar/                  # 发行日历 + 详情抽屉
+│   │       ├── archives/                  # 藏品库 + 详情
+│   │       ├── ips/                       # IP库
+│   │       └── tasks/                     # 任务管理 + 执行日志
 │   ├── package.json
-│   ├── tsconfig.json
 │   └── vite.config.ts
+├── spider_process.md                      # 爬虫流程文档
 └── README.md
 ```
 
@@ -72,7 +74,6 @@ xmeta_claw/
 ### 2. 数据库
 
 ```bash
-# 创建 PostgreSQL 数据库
 createdb jingtan
 ```
 
@@ -80,29 +81,19 @@ createdb jingtan
 
 ```bash
 cd backend
-
-# 创建虚拟环境
 python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-
-# 安装依赖
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# 配置环境变量（按需修改 .env）
-cp .env.example .env
-
-# 启动服务（首次启动自动建表和创建 admin 账户）
+cp .env.example .env       # 按需修改配置
 uvicorn app.main:app --reload --port 8000
 ```
+
+首次启动自动建表并创建 admin 账户。
 
 ### 4. 前端
 
 ```bash
 cd frontend
-
 npm install
 npm run dev
 ```
@@ -118,6 +109,27 @@ npm run dev
 密码:   admin123
 ```
 
+## 爬虫反封策略
+
+| 策略 | 说明 |
+|------|------|
+| UA 轮转 | 9 个 User-Agent (Android/iOS/桌面端) 随机切换 |
+| 随机延迟 | 基础延迟 ±40% 抖动，避免固定请求频率 |
+| 请求头变换 | Accept-Language/Accept/Cache-Control 等随机组合 |
+| 连接池复用 | httpx 持久化连接池，减少握手开销 |
+| 并发控制 | 信号量限制最大并发数（默认 3），避免瞬间高频 |
+| 代理支持 | 可配置 HTTP/SOCKS 代理，支持代理池轮换 |
+| 指数退避 | 失败后指数退避重试（2s → 4s → 8s，最多 3 次） |
+| 优雅降级 | 单条失败不中断整体任务，继续处理下一条 |
+
+配置项（`.env`）：
+
+```bash
+CRAWLER_REQUEST_DELAY=0.5    # 基础请求间隔(秒)
+CRAWLER_CONCURRENCY=3        # 最大并发请求数
+CRAWLER_PROXY=               # 代理地址, 留空则直连
+```
+
 ## API 接口
 
 | 方法 | 路径 | 说明 |
@@ -126,40 +138,57 @@ npm run dev
 | POST | `/auth/logout` | 登出 |
 | GET | `/auth/me` | 当前用户信息 |
 | GET | `/calendar/` | 发行日历列表（支持日期/平台/IP/搜索筛选） |
-| GET | `/calendar/{id}` | 发行详情 |
-| GET | `/archives/` | 藏品列表（支持排序/筛选） |
-| GET | `/archives/{id}` | 藏品详情（含价格历史） |
-| GET | `/ips/` | IP列表 |
-| GET | `/stats/dashboard` | Dashboard 统计数据 |
-| POST | `/crawler/full` | 触发完整爬取（管理员） |
-| POST | `/crawler/market` | 触发市场数据更新（管理员） |
+| GET | `/calendar/{id}` | 发行详情（含关联藏品） |
+| GET | `/archives/` | 藏品列表（支持排序/筛选/分页） |
+| GET | `/archives/{id}` | 藏品详情 |
+| GET | `/ips/` | IP列表（含藏品数统计） |
+| GET | `/stats/dashboard` | Dashboard 统计 + 近30天发行趋势 |
+| GET | `/tasks/` | 任务列表 |
+| PUT | `/tasks/{id}` | 更新任务配置（管理员） |
+| POST | `/tasks/{id}/run` | 触发任务执行（管理员） |
+| GET | `/tasks/{id}/runs` | 任务执行历史 |
+| GET | `/tasks/{id}/runs/{rid}/logs` | 任务执行日志 |
+| POST | `/crawler/full` | 触发全量爬取（管理员） |
 | POST | `/crawler/calendar/{date}` | 爬取指定日期日历（管理员） |
 
 所有接口（除 login）需在请求头携带 `Authorization: Bearer <token>`。
 
 ## 定时任务
 
-启动后端后自动运行：
-
-| 任务 | 频率 | 说明 |
-|------|------|------|
-| 市场数据更新 | 每 10 分钟 | 更新所有藏品价格、挂单、成交数据，并记录历史 |
-| 今日日历 | 每小时 | 爬取今日和明日发行日历 |
+| 任务 | 默认频率 | 说明 |
+|------|----------|------|
+| 今日日历 | 每小时 | 爬取今日和明日发行日历，补全详情和关联藏品 |
 | 补全详情 | 每小时 | 爬取缺少详情的发行记录 |
-| 藏品列表 | 每 6 小时 | 更新藏品库 |
+| 藏品列表 | 每 6 小时 | 更新藏品库数据 |
+| 全量爬取 | 每天（默认禁用） | 往前连续爬取直到 15 天无数据停止 |
+| 近7天爬取 | 每天（默认禁用） | 重跑近7天日历、详情并补齐关联藏品 |
+| 藏品ID补齐 | 每天（默认禁用） | 从最大 archiveId 批量补齐到 15000 |
+
+所有任务频率可在前端任务管理页面动态调整。
 
 ## 数据采集流程
 
+详见 [spider_process.md](./spider_process.md)
+
 ```
-遍历日期(today-2年 ~ today+30天)
-  → 获取发行日历 (/h5/news/launchCalendar/list)
-  → 获取发行详情 (/h5/news/launchCalendar/detailed)
-  → 提取 archiveId
-  → 获取藏品市场数据 (/h5/goods/archive)
-  → 保存/更新数据库
+第一阶段：日历数据
+  遍历日期 → 获取发行日历列表 → 获取发行详情 → 提取关联藏品ID
+  → 获取藏品详细数据 → 获取IP信息 → 保存/更新数据库
+
+第二阶段：藏品ID补齐
+  从最大 archiveId 批量查库 → 过滤缺失ID → 并发拉取详情 → 写入数据库
 ```
 
-首次完整爬取：登录后调用 `POST /crawler/full`。
+## 前端页面
+
+| 页面 | 功能 |
+|------|------|
+| Dashboard | 统计卡片 + 近30天发行趋势柱状图 + 热门IP排行榜 + 最新藏品 |
+| 发行日历 | 日期/搜索筛选 + 详情抽屉（包含/关联藏品表格） |
+| 藏品库 | 搜索/排序 + 藏品列表 + 全量爬取触发按钮 |
+| 藏品详情 | 基本信息卡片（图片、平台、IP、类型、数量、发行时间等） |
+| IP库 | IP列表 + 藏品数统计 |
+| 任务管理 | 任务开关/配置 + 执行历史 + 实时日志查看 |
 
 ## 数据库表
 
@@ -167,15 +196,16 @@ npm run dev
 |------|------|
 | `users` | 用户(admin/viewer) |
 | `platforms` | 平台 |
-| `ips` | IP |
+| `ips` | IP（含 source_uid、粉丝数、描述） |
 | `launch_calendar` | 发行日历 |
 | `launch_detail` | 发行详情(含 raw_json) |
 | `archives` | 藏品 |
-| `archive_market` | 藏品当前市场数据 |
-| `archive_price_history` | 藏品价格历史(每次更新追加) |
+| `task_configs` | 定时任务配置 |
+| `task_runs` | 任务执行记录 |
+| `task_run_logs` | 任务执行日志 |
 
 ## 响应式设计
 
 - `<768px` 手机：Table 切换为 Card 列表，Sidebar 切换为 Drawer
 - `768-1200px` 平板：自适应列数
-- `>1200px` PC：完整表格 + 固定侧边栏
+- `>1200px` PC：完整表格 + 固定侧边栏 + 完整图表

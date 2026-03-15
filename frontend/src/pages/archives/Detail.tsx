@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Card, Descriptions, Spin, Row, Col, Grid, Image } from 'antd'
+import { Card, Descriptions, Spin, Row, Col, Grid, Image, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { archiveApi } from '../../api/archives'
 
@@ -48,6 +48,12 @@ export default function ArchiveDetailPage() {
               <Descriptions.Item label="发行时间">
                 {data.issue_time ? dayjs(data.issue_time).format('YYYY-MM-DD') : '-'}
               </Descriptions.Item>
+              <Descriptions.Item label="可拍卖">
+                {data.is_open_auction ? <Tag color="green">是</Tag> : <Tag>否</Tag>}
+              </Descriptions.Item>
+              <Descriptions.Item label="可求购">
+                {data.is_open_want_buy ? <Tag color="green">是</Tag> : <Tag>否</Tag>}
+              </Descriptions.Item>
             </Descriptions>
           </Col>
         </Row>
@@ -58,7 +64,6 @@ export default function ArchiveDetailPage() {
           <p style={{ whiteSpace: 'pre-wrap' }}>{data.archive_description}</p>
         </Card>
       )}
-
     </div>
   )
 }

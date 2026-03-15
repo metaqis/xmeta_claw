@@ -19,10 +19,16 @@ export interface TopIPItem {
   archive_count: number
 }
 
+export interface LaunchTrendItem {
+  date: string
+  count: number
+}
+
 export interface DashboardResponse {
   stats: DashboardStats
   recent_archives: RecentArchiveItem[]
   top_ips: TopIPItem[]
+  launch_trend: LaunchTrendItem[]
 }
 
 export const statsApi = {

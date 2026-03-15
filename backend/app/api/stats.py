@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, Date
 from pydantic import BaseModel
 
 from app.database.db import get_db
@@ -32,10 +32,16 @@ class TopIPItem(BaseModel):
     archive_count: int = 0
 
 
+class LaunchTrendItem(BaseModel):
+    date: str
+    count: int
+
+
 class DashboardResponse(BaseModel):
     stats: DashboardStats
     recent_archives: list[RecentArchiveItem] = []
     top_ips: list[TopIPItem] = []
+    launch_trend: list[LaunchTrendItem] = []
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
@@ -91,4 +97,26 @@ async def get_dashboard(
         for row in ip_result.all()
     ]
 
-    return DashboardResponse(stats=stats, recent_archives=recent_archives, top_ips=top_ips)
+    # 近30天发行趋势
+    thirty_days_ago = today - timedelta(days=30)
+    trend_result = await db.execute(
+        select(
+            cast(LaunchCalendar.sell_time, Date).label("date"),
+            func.count(LaunchCalendar.id).label("cnt"),
+        )
+        .where(LaunchCalendar.sell_time >= thirty_days_ago)
+        .where(LaunchCalendar.sell_time < tomorrow)
+        .group_by(cast(LaunchCalendar.sell_time, Date))
+        .order_by(cast(LaunchCalendar.sell_time, Date))
+    )
+    launch_trend = [
+        LaunchTrendItem(date=str(row[0]), count=row[1])
+        for row in trend_result.all()
+    ]
+
+    return DashboardResponse(
+        stats=stats,
+        recent_archives=recent_archives,
+        top_ips=top_ips,
+        launch_trend=launch_trend,
+    )
