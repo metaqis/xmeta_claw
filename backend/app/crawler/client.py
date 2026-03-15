@@ -61,7 +61,8 @@ class CrawlerClient:
     def __init__(self):
         self.base_url = settings.CRAWLER_API_BASE
         self.delay = settings.CRAWLER_REQUEST_DELAY
-        self.proxy = settings.CRAWLER_PROXY or None
+        proxy = (settings.CRAWLER_PROXY or "").strip()
+        self.proxy = proxy or None
         self._client: Optional[httpx.AsyncClient] = None
         self._lock = asyncio.Lock()
         # 并发控制信号量
@@ -72,16 +73,19 @@ class CrawlerClient:
         if self._client is None or self._client.is_closed:
             async with self._lock:
                 if self._client is None or self._client.is_closed:
-                    self._client = httpx.AsyncClient(
-                        timeout=httpx.Timeout(30.0, connect=10.0),
-                        limits=httpx.Limits(
+                    kwargs = {
+                        "timeout": httpx.Timeout(30.0, connect=10.0),
+                        "limits": httpx.Limits(
                             max_connections=20,
                             max_keepalive_connections=10,
                             keepalive_expiry=30,
                         ),
-                        proxy=self.proxy,
-                        follow_redirects=True,
-                    )
+                        "trust_env": False,
+                        "follow_redirects": True,
+                    }
+                    if self.proxy:
+                        kwargs["proxies"] = self.proxy
+                    self._client = httpx.AsyncClient(**kwargs)
         return self._client
 
     @retry(
@@ -94,10 +98,9 @@ class CrawlerClient:
         client = await self._get_client()
         async with self._semaphore:
             logger.debug(f"POST {url} body={json_data}")
-            resp = await client.post(url, json=json_data, headers=_random_headers())
+            resp = await client.post(url, json=json_data, headers=_random_headers(), timeout=timeout)
             resp.raise_for_status()
             data = resp.json()
-            logger.debug(f"Response status={resp.status_code}")
             await asyncio.sleep(_jitter_delay(self.delay))
             return data
 
@@ -107,6 +110,30 @@ class CrawlerClient:
             return await self.post(path, json_data)
         except Exception as e:
             logger.error(f"请求失败 {path}: {e}")
+            return None
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException)),
+    )
+    async def get(self, path: str, timeout: float = 30.0) -> Optional[dict]:
+        url = f"{self.base_url}{path}"
+        client = await self._get_client()
+        async with self._semaphore:
+            logger.debug(f"GET {url}")
+            resp = await client.get(url, headers=_random_headers(), timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            await asyncio.sleep(_jitter_delay(self.delay))
+            return data
+
+    async def get_safe(self, path: str) -> Optional[dict]:
+        """GET 不抛异常版本，返回 None 表示失败"""
+        try:
+            return await self.get(path)
+        except Exception as e:
+            logger.error(f"GET 请求失败 {path}: {e}")
             return None
 
     async def close(self):

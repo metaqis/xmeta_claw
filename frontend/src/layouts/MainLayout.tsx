@@ -10,6 +10,7 @@ import {
   SettingOutlined,
   UserOutlined,
   LogoutOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../store/auth'
 
@@ -22,6 +23,7 @@ const menuItems = [
   { key: '/archives', icon: <AppstoreOutlined />, label: '藏品库' },
   { key: '/ips', icon: <TeamOutlined />, label: 'IP库' },
   { key: '/tasks', icon: <SettingOutlined />, label: '任务管理' },
+  { key: '/agent', icon: <RobotOutlined />, label: 'AI助手' },
 ]
 
 export default function MainLayout() {

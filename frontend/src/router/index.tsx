@@ -9,6 +9,7 @@ import ArchiveDetailPage from '../pages/archives/Detail'
 import IPsPage from '../pages/ips'
 import IPArchivesPage from '../pages/ips/Archives'
 import TasksPage from '../pages/tasks'
+import AgentPage from '../pages/agent'
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -28,6 +29,7 @@ export const routes: RouteObject[] = [
       { path: 'ips', element: <IPsPage /> },
       { path: 'ips/:id/archives', element: <IPArchivesPage /> },
       { path: 'tasks', element: <TasksPage /> },
+      { path: 'agent', element: <AgentPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> },

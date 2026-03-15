@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     CRAWLER_CONCURRENCY: int = 3  # 最大并发请求数
     CRAWLER_PROXY: str = ""  # 代理地址，如 http://user:pass@host:port
 
+    # LLM (qwen-plus via DashScope OpenAI-compatible API)
+    LLM_API_KEY: str = ""
+    LLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    LLM_MODEL: str = "qwen-plus"
+    LLM_MAX_TOKENS: int = 4096
+    LLM_TEMPERATURE: float = 0.7
+    AGENT_MAX_HISTORY: int = 40
+    AGENT_MAX_TOOL_ROUNDS: int = 10
+
     # Admin
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"

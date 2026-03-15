@@ -153,3 +153,34 @@ class TaskRunLog(Base):
     __table_args__ = (
         Index("ix_task_run_logs_run_created", "run_id", "created_at"),
     )
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(200), default="新对话")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    session_id = Column(BigInteger, ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # system / user / assistant / tool
+    content = Column(Text)
+    tool_calls = Column(Text)  # JSON string of tool_calls array
+    tool_call_id = Column(String(100))
+    name = Column(String(100))  # tool name for tool role
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("ChatSession", back_populates="messages")
+
+    __table_args__ = (
+        Index("ix_chat_messages_session_created", "session_id", "created_at"),
+    )

@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.core.security import get_password_hash
 from app.database.db import init_db, async_session
 from app.database.models import User
-from app.api import auth, calendar, archives, ips, stats, crawler, tasks
+from app.api import auth, calendar, archives, ips, stats, crawler, tasks, agent
 from app.scheduler.tasks import start_scheduler, stop_scheduler
 from app.crawler.client import crawler_client
 
@@ -66,6 +66,7 @@ app.include_router(ips.router)
 app.include_router(stats.router)
 app.include_router(crawler.router)
 app.include_router(tasks.router)
+app.include_router(agent.router)
 
 
 @app.get("/")
