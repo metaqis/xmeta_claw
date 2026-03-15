@@ -14,6 +14,8 @@ router = APIRouter(prefix="/ips", tags=["IP"])
 
 class IPItem(BaseModel):
     id: int
+    source_uid: Optional[int] = None
+    from_type: int = 1
     ip_name: str
     ip_avatar: Optional[str] = None
     fans_count: Optional[int] = None
@@ -73,6 +75,8 @@ async def get_ips(
         archive_count = row[1]
         items.append(IPItem(
             id=ip_obj.id,
+            source_uid=ip_obj.source_uid,
+            from_type=ip_obj.from_type or 1,
             ip_name=ip_obj.ip_name,
             ip_avatar=ip_obj.ip_avatar,
             fans_count=ip_obj.fans_count,

@@ -13,6 +13,7 @@ from app.crawler.archive_crawler import crawl_archives
 from app.crawler.archive_id_backfill import backfill_archives_by_id_desc, get_max_numeric_archive_id
 from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar_range
 from app.crawler.calendar_crawler import crawl_calendar_for_date, crawl_calendar_range, crawl_calendar_backward_until_no_data
+from app.crawler.ip_uid_backfill import backfill_ip_source_uid
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
@@ -130,6 +131,16 @@ async def task_archive_id_backfill(db, run_id: int):
     await _log_run(db, run_id, "info", "藏品ID补齐完成")
 
 
+async def task_ip_uid_backfill(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始补齐 IP source_uid")
+
+    async def _on_progress(processed: int, updated: int, total: int):
+        await _log_run(db, run_id, "info", f"IP source_uid 补齐进度: {processed}/{total} 已更新 {updated}")
+
+    processed, updated = await backfill_ip_source_uid(db, on_progress=_on_progress)
+    await _log_run(db, run_id, "info", f"IP source_uid 补齐完成: 处理 {processed} 更新 {updated}")
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
         "name": "今日日历",
@@ -175,6 +186,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_archive_id_backfill,
+    },
+    "ip_uid_backfill": {
+        "name": "IP UID补齐",
+        "description": "通过关联藏品详情补齐 IP 的 source_uid",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_ip_uid_backfill,
     },
 }
 

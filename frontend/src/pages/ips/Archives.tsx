@@ -1,33 +1,33 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Card, Input, Row, Col, Grid, List, Image, Select, Button, Space, Modal, message, Tooltip } from 'antd'
-import { LinkOutlined } from '@ant-design/icons'
+import { Table, Card, Input, Row, Col, Grid, List, Image, Select, Button, Tooltip } from 'antd'
+import { ArrowLeftOutlined, LinkOutlined } from '@ant-design/icons'
 import { archiveApi, ArchiveItem, ArchiveParams } from '../../api/archives'
-import { tasksApi } from '../../api/tasks'
-import { useAuthStore } from '../../store/auth'
 
 const { useBreakpoint } = Grid
 
-export default function ArchivesPage() {
+const getXmetaUrl = (archiveId: string, platformId: number | null) =>
+  `https://xmeta.x-metash.cn/prod/xmeta_mall/#/pages/salesDetail/index?archiveId=${archiveId}&platformId=${platformId ?? 741}&active=6`
+
+export default function IPArchivesPage() {
+  const { id } = useParams<{ id: string }>()
+  const ipId = Number(id)
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const navigate = useNavigate()
-  const role = useAuthStore((s) => s.role)
-  const isAdmin = role === 'admin'
 
-  const [params, setParams] = useState<ArchiveParams>({ page: 1, page_size: 20 })
-  const [fullCrawlLoading, setFullCrawlLoading] = useState(false)
+  const [params, setParams] = useState<ArchiveParams>({ page: 1, page_size: 20, ip_id: ipId })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['archives', params],
-    queryFn: () => archiveApi.list(params),
+    queryKey: ['ip-archives', ipId, params],
+    queryFn: () => archiveApi.list({ ...params, ip_id: ipId }),
+    enabled: !!ipId,
   })
 
-  const goDetail = (id: string) => navigate(`/archives/${id}`)
+  const ipName = data?.items?.[0]?.ip_name
 
-  const getXmetaUrl = (archiveId: string, platformId: number | null) =>
-    `https://xmeta.x-metash.cn/prod/xmeta_mall/#/pages/salesDetail/index?archiveId=${archiveId}&platformId=${platformId ?? 741}&active=6`
+  const goDetail = (archiveId: string) => navigate(`/archives/${archiveId}`)
 
   const columns = [
     {
@@ -47,7 +47,6 @@ export default function ArchivesPage() {
       ),
     },
     { title: '平台', dataIndex: 'platform_name', key: 'platform', width: 100 },
-    { title: 'IP', dataIndex: 'ip_name', key: 'ip', width: 120, ellipsis: true },
     { title: '类型', dataIndex: 'archive_type', key: 'type', width: 120, ellipsis: true },
     { title: '数量', dataIndex: 'total_goods_count', key: 'count', width: 90 },
     {
@@ -67,7 +66,20 @@ export default function ArchivesPage() {
   return (
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]}>
+        <Row gutter={[12, 12]} align="middle">
+          <Col>
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/ips')} />
+          </Col>
+          <Col flex="auto">
+            <span style={{ fontWeight: 600, fontSize: 16 }}>
+              {ipName ? `${ipName} 的藏品` : 'IP 藏品列表'}
+            </span>
+            <span style={{ color: '#999', marginLeft: 8 }}>
+              共 {data?.total ?? 0} 个
+            </span>
+          </Col>
+        </Row>
+        <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
           <Col xs={24} sm={12} md={8}>
             <Input.Search
               placeholder="搜索藏品"
@@ -86,36 +98,6 @@ export default function ArchivesPage() {
               ]}
               onChange={(v) => setParams((p) => ({ ...p, sort_by: v, page: 1 }))}
             />
-          </Col>
-          <Col xs={24} sm={6} md={4} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Space>
-              <Button
-                type="primary"
-                disabled={!isAdmin}
-                loading={fullCrawlLoading}
-                onClick={() => {
-                  Modal.confirm({
-                    title: '触发全量爬取？',
-                    content: '将按 UTC 时间范围执行全量爬取，并在后台运行。',
-                    okText: '开始',
-                    cancelText: '取消',
-                    onOk: async () => {
-                      setFullCrawlLoading(true)
-                      try {
-                        const res = await tasksApi.run('full_crawl')
-                        message.success(`已触发全量爬取，run_id=${res.run_id}，可到任务管理查看日志`)
-                      } catch (e: any) {
-                        message.error(e?.response?.data?.detail || '触发失败')
-                      } finally {
-                        setFullCrawlLoading(false)
-                      }
-                    },
-                  })
-                }}
-              >
-                全量爬取
-              </Button>
-            </Space>
           </Col>
         </Row>
       </Card>
@@ -151,7 +133,7 @@ export default function ArchivesPage() {
                   <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.archive_name}
                   </div>
-                  <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>{item.ip_name} · {item.platform_name}</div>
+                  <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>{item.platform_name}</div>
                   <div style={{ color: '#999', fontSize: 12, marginTop: 8 }}>
                     {item.archive_type ?? '-'} · 数量 {item.total_goods_count ?? '-'}
                     <a

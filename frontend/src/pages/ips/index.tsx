@@ -1,13 +1,21 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Card, Input, Row, Col, Grid, List, Avatar } from 'antd'
+import { Table, Card, Input, Row, Col, Grid, List, Avatar, Tooltip, Space } from 'antd'
+import { LinkOutlined } from '@ant-design/icons'
 import { ipApi, IPItem, IPParams } from '../../api/ips'
 
 const { useBreakpoint } = Grid
 
+const getXmetaIPUrl = (sourceUid: number | null, fromType: number) =>
+  sourceUid != null
+    ? `https://xmeta.x-metash.cn/prod/xmeta_mall/#/pages/ltwd/index?uid=${sourceUid}&fromType=${fromType}`
+    : null
+
 export default function IPsPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const navigate = useNavigate()
 
   const [params, setParams] = useState<IPParams>({ page: 1, page_size: 20 })
 
@@ -24,10 +32,42 @@ export default function IPsPage() {
       width: 60,
       render: (v: string | null) => <Avatar src={v} size="small">{!v ? 'IP' : ''}</Avatar>,
     },
-    { title: 'IP名称', dataIndex: 'ip_name', key: 'name', ellipsis: true },
+    {
+      title: 'IP名称',
+      dataIndex: 'ip_name',
+      key: 'name',
+      ellipsis: true,
+      render: (v: string, r: IPItem) => (
+        <a onClick={() => navigate(`/ips/${r.id}/archives`)}>{v}</a>
+      ),
+    },
     { title: '平台', dataIndex: 'platform_name', key: 'platform', width: 120 },
     { title: '粉丝', dataIndex: 'fans_count', key: 'fans', width: 90 },
-    { title: '藏品数', dataIndex: 'archive_count', key: 'count', width: 90, sorter: (a: IPItem, b: IPItem) => a.archive_count - b.archive_count },
+    {
+      title: '藏品数',
+      dataIndex: 'archive_count',
+      key: 'count',
+      width: 90,
+      sorter: (a: IPItem, b: IPItem) => a.archive_count - b.archive_count,
+      render: (v: number, r: IPItem) => (
+        <a onClick={() => navigate(`/ips/${r.id}/archives`)}>{v}</a>
+      ),
+    },
+    {
+      title: '外链',
+      key: 'xmeta',
+      width: 60,
+      render: (_: unknown, r: IPItem) => {
+        const url = getXmetaIPUrl(r.source_uid, r.from_type)
+        return url ? (
+          <Tooltip title="在xmeta查看">
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              <LinkOutlined />
+            </a>
+          </Tooltip>
+        ) : '-'
+      },
+    },
   ]
 
   return (
@@ -56,10 +96,22 @@ export default function IPsPage() {
             size: 'small',
           }}
           renderItem={(item: IPItem) => (
-            <List.Item>
+            <List.Item onClick={() => navigate(`/ips/${item.id}/archives`)} style={{ cursor: 'pointer' }}>
               <List.Item.Meta
                 avatar={<Avatar src={item.ip_avatar} size={40}>{!item.ip_avatar ? item.ip_name[0] : ''}</Avatar>}
-                title={item.ip_name}
+                title={
+                  <Space>
+                    {item.ip_name}
+                    {(() => {
+                      const url = getXmetaIPUrl(item.source_uid, item.from_type)
+                      return url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                          <LinkOutlined />
+                        </a>
+                      ) : null
+                    })()}
+                  </Space>
+                }
                 description={`${item.platform_name ?? '未知平台'} · 粉丝 ${item.fans_count ?? '-'} · 藏品 ${item.archive_count} 个`}
               />
             </List.Item>

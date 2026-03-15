@@ -7,6 +7,7 @@ import CalendarPage from '../pages/calendar'
 import ArchivesPage from '../pages/archives'
 import ArchiveDetailPage from '../pages/archives/Detail'
 import IPsPage from '../pages/ips'
+import IPArchivesPage from '../pages/ips/Archives'
 import TasksPage from '../pages/tasks'
 
 export const routes: RouteObject[] = [
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
       { path: 'archives', element: <ArchivesPage /> },
       { path: 'archives/:id', element: <ArchiveDetailPage /> },
       { path: 'ips', element: <IPsPage /> },
+      { path: 'ips/:id/archives', element: <IPArchivesPage /> },
       { path: 'tasks', element: <TasksPage /> },
     ],
   },

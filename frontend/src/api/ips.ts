@@ -2,6 +2,8 @@ import request from './request'
 
 export interface IPItem {
   id: number
+  source_uid: number | null
+  from_type: number
   ip_name: string
   ip_avatar: string | null
   fans_count: number | null
