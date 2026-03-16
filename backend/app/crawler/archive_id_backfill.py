@@ -1,5 +1,4 @@
 """藏品ID倒序补齐，使用批量数据库查询优化性能"""
-import asyncio
 from datetime import datetime
 from typing import Awaitable, Callable, Optional, Tuple
 
@@ -98,28 +97,28 @@ async def backfill_archives_by_id_desc(
         missing_ids = [aid for aid in batch_ids if aid not in existing_ids]
 
         scanned += batch_size
+        if on_progress is not None:
+            await on_progress(scanned, created, total, skipped, errors)
 
-        # 分小组并发拉取，避免一次并发过多
-        chunk_size = 5
+        # 串行拉取，降低并发请求触发风控的风险
         batch_miss_ids: list[str] = []
-        for i in range(0, len(missing_ids), chunk_size):
-            chunk = missing_ids[i:i + chunk_size]
-            results = await asyncio.gather(
-                *[_fetch_and_upsert(db, aid, platform_id) for aid in chunk],
-                return_exceptions=True,
-            )
-            for aid, r in zip(chunk, results):
-                if isinstance(r, Exception):
-                    errors += 1
-                    err_msg = f"藏品 {aid} 请求异常: {r}"
-                    logger.warning(err_msg)
-                    if on_error is not None:
-                        await on_error(aid, str(r))
-                elif r is True:
+        for aid in missing_ids:
+            try:
+                r = await _fetch_and_upsert(db, aid, platform_id)
+            except Exception as e:
+                errors += 1
+                err_msg = f"藏品 {aid} 请求异常: {e}"
+                logger.warning(err_msg)
+                if on_error is not None:
+                    await on_error(aid, str(e))
+            else:
+                if r is True:
                     created += 1
                 elif r is False:
                     skipped += 1
                     batch_miss_ids.append(aid)
+            if on_progress is not None:
+                await on_progress(scanned, created, total, skipped, errors)
 
         # 批量记录本轮 miss
         await _record_misses(db, batch_miss_ids)
