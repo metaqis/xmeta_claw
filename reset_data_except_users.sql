@@ -4,6 +4,7 @@ TRUNCATE TABLE
   launch_calendar,
   launch_detail,
   archives,
+  archive_misses,
   task_runs,
   task_run_logs
 RESTART IDENTITY CASCADE;

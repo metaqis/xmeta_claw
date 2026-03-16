@@ -155,6 +155,14 @@ class TaskRunLog(Base):
     )
 
 
+class ArchiveMiss(Base):
+    """记录已检查但 API 不存在的 archive_id，避免重复请求"""
+    __tablename__ = "archive_misses"
+
+    archive_id = Column(String(100), primary_key=True)
+    checked_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 

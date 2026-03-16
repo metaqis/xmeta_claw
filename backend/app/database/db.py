@@ -49,3 +49,11 @@ async def init_db():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_run_id ON task_run_logs (run_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_created_at ON task_run_logs (created_at)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_task_run_logs_run_created ON task_run_logs (run_id, created_at)"))
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS archive_misses ("
+                "archive_id VARCHAR(100) PRIMARY KEY,"
+                "checked_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()"
+                ")"
+            )
+        )

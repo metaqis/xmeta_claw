@@ -118,17 +118,24 @@ async def task_archive_id_backfill(db, run_id: int):
         return
     await _log_run(db, run_id, "info", f"开始藏品ID补齐: {max_id} -> 15000")
 
-    async def _on_progress(scanned: int, created: int, total: int):
-        await _log_run(db, run_id, "info", f"藏品ID补齐进度: 扫描 {scanned}/{total} 新增 {created}")
+    async def _on_progress(scanned: int, created: int, total: int, skipped: int, errors: int):
+        await _log_run(
+            db, run_id, "info",
+            f"藏品ID补齐进度: 扫描 {scanned}/{total} 新增 {created} 跳过 {skipped} 失败 {errors}",
+        )
 
-    await backfill_archives_by_id_desc(
+    async def _on_error(archive_id: str, error_msg: str):
+        await _log_run(db, run_id, "error", f"藏品 {archive_id} 请求失败: {error_msg}")
+
+    scanned, created = await backfill_archives_by_id_desc(
         db,
         start_id=max_id,
         stop_id=15000,
         platform_id=741,
         on_progress=_on_progress,
+        on_error=_on_error,
     )
-    await _log_run(db, run_id, "info", "藏品ID补齐完成")
+    await _log_run(db, run_id, "info", f"藏品ID补齐完成: 扫描 {scanned} 新增 {created}")
 
 
 async def task_ip_uid_backfill(db, run_id: int):

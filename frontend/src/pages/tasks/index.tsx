@@ -438,12 +438,20 @@ export default function TasksPage() {
               width: 180,
               render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
             },
-            { title: '级别', dataIndex: 'level', key: 'level', width: 90 },
+            { title: '级别', dataIndex: 'level', key: 'level', width: 90,
+              render: (v: string) => {
+                if (v === 'error') return <Tag color="red">ERROR</Tag>
+                if (v === 'warn') return <Tag color="orange">WARN</Tag>
+                return <Tag>INFO</Tag>
+              },
+            },
             {
               title: '内容',
               dataIndex: 'message',
               key: 'message',
-              render: (v: string) => <Text ellipsis title={v}>{v}</Text>,
+              render: (v: string, r: TaskRunLogItem) => (
+                <Text type={r.level === 'error' ? 'danger' : undefined} ellipsis title={v}>{v}</Text>
+              ),
             },
           ]}
         />
