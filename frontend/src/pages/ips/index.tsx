@@ -124,6 +124,7 @@ export default function IPsPage() {
           columns={columns}
           rowKey="id"
           size="small"
+          scroll={{ x: 760 }}
           pagination={{
             total: data?.total ?? 0,
             current: params.page,

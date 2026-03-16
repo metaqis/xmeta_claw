@@ -117,6 +117,50 @@ export default function CalendarPage() {
     },
   ]
 
+  const renderRelatedMobile = (items: CalendarRelatedArchiveItem[]) => (
+    <List
+      dataSource={items}
+      locale={{ emptyText: '暂无数据' }}
+      renderItem={(r: CalendarRelatedArchiveItem) => (
+        <Card size="small" style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {r.archive_img ? (
+              <Image
+                src={r.archive_img}
+                width={56}
+                height={56}
+                style={{ borderRadius: 8, objectFit: 'cover' }}
+                preview={false}
+              />
+            ) : null}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {r.archive_name || '-'}
+              </div>
+              <Text type="secondary">{r.associated_archive_id || '-'}</Text>
+              <div style={{ marginTop: 6 }}>
+                <Space size={[6, 6]} wrap>
+                  <Tag>{`数量 ${r.total_goods_count ?? '-'}`}</Tag>
+                  {r.is_transfer ? <Tag color="green">可转赠</Tag> : <Tag>不可转赠</Tag>}
+                </Space>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <Button
+              block
+              size="middle"
+              disabled={!r.associated_archive_id}
+              onClick={() => r.associated_archive_id && navigate(`/archives/${r.associated_archive_id}`)}
+            >
+              查看藏品
+            </Button>
+          </div>
+        </Card>
+      )}
+    />
+  )
+
   return (
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
@@ -183,6 +227,7 @@ export default function CalendarPage() {
           columns={columns}
           rowKey="id"
           size="small"
+          scroll={{ x: 860 }}
           onRow={(record) => ({
             onClick: () => openDetail(record.id),
           })}
@@ -203,7 +248,7 @@ export default function CalendarPage() {
         onClose={() => setOpen(false)}
         width={isMobile ? '100%' : 980}
         extra={
-          <Button loading={detailLoading} onClick={() => refetchDetail()}>
+          <Button size="middle" loading={detailLoading} onClick={() => refetchDetail()}>
             刷新
           </Button>
         }
@@ -237,22 +282,32 @@ export default function CalendarPage() {
             </Paragraph>
 
             <div style={{ marginTop: 16, fontWeight: 600, marginBottom: 8 }}>包含藏品</div>
-            <Table
-              rowKey={(r: CalendarRelatedArchiveItem) => `${r.id ?? ''}-${r.associated_archive_id ?? ''}`}
-              dataSource={detail.contain_archives}
-              columns={relatedColumns as any}
-              size="small"
-              pagination={false}
-            />
+            {isMobile ? (
+              renderRelatedMobile(detail.contain_archives)
+            ) : (
+              <Table
+                rowKey={(r: CalendarRelatedArchiveItem) => `${r.id ?? ''}-${r.associated_archive_id ?? ''}`}
+                dataSource={detail.contain_archives}
+                columns={relatedColumns as any}
+                size="small"
+                pagination={false}
+                scroll={{ x: 720 }}
+              />
+            )}
 
             <div style={{ marginTop: 16, fontWeight: 600, marginBottom: 8 }}>关联藏品</div>
-            <Table
-              rowKey={(r: CalendarRelatedArchiveItem) => `${r.id ?? ''}-${r.associated_archive_id ?? ''}-a`}
-              dataSource={detail.association_archives}
-              columns={relatedColumns as any}
-              size="small"
-              pagination={false}
-            />
+            {isMobile ? (
+              renderRelatedMobile(detail.association_archives)
+            ) : (
+              <Table
+                rowKey={(r: CalendarRelatedArchiveItem) => `${r.id ?? ''}-${r.associated_archive_id ?? ''}-a`}
+                dataSource={detail.association_archives}
+                columns={relatedColumns as any}
+                size="small"
+                pagination={false}
+                scroll={{ x: 720 }}
+              />
+            )}
           </div>
         ) : (
           <Text type="secondary">选择一条发行记录查看详情</Text>

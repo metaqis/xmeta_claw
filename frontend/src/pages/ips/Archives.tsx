@@ -68,7 +68,9 @@ export default function IPArchivesPage() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Row gutter={[12, 12]} align="middle">
           <Col>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/ips')} />
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/ips')}>
+              返回
+            </Button>
           </Col>
           <Col flex="auto">
             <span style={{ fontWeight: 600, fontSize: 16 }}>
@@ -158,6 +160,7 @@ export default function IPArchivesPage() {
           columns={columns}
           rowKey="archive_id"
           size="small"
+          scroll={{ x: 860 }}
           pagination={{
             total: data?.total ?? 0,
             current: params.page,

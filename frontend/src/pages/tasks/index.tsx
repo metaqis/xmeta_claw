@@ -2,11 +2,16 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Button,
+  Card,
+  Collapse,
   Drawer,
   Form,
+  Grid,
   Input,
   InputNumber,
+  List,
   Modal,
+  Progress,
   Space,
   Switch,
   Table,
@@ -20,6 +25,7 @@ import { tasksApi, TaskItem, TaskRunItem, TaskRunLogItem } from '../../api/tasks
 import { useAuthStore } from '../../store/auth'
 
 const { Text } = Typography
+const { useBreakpoint } = Grid
 
 function formatSchedule(t: TaskItem) {
   if (t.schedule_type === 'cron') return t.cron || '-'
@@ -39,7 +45,23 @@ function statusTag(status: string) {
   return <Tag>{status}</Tag>
 }
 
+function parseBackfillProgress(messageText?: string | null) {
+  if (!messageText) return null
+  const match = messageText.match(/扫描\s+(\d+)\/(\d+)\s+新增\s+(\d+)\s+跳过\s+(\d+)\s+失败\s+(\d+)/)
+  if (!match) return null
+  const scanned = Number(match[1])
+  const total = Number(match[2])
+  const created = Number(match[3])
+  const skipped = Number(match[4])
+  const errors = Number(match[5])
+  if (!Number.isFinite(scanned) || !Number.isFinite(total) || total <= 0) return null
+  const percent = Math.min(100, Math.max(0, (scanned / total) * 100))
+  return { scanned, total, created, skipped, errors, percent }
+}
+
 export default function TasksPage() {
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
   const qc = useQueryClient()
   const role = useAuthStore((s) => s.role)
   const isAdmin = role === 'admin'
@@ -108,6 +130,79 @@ export default function TasksPage() {
     refetchInterval: logsQueryEnabled ? 2000 : false,
   })
 
+  const openEdit = (t: TaskItem) => {
+    setEditing(t)
+    setEditOpen(true)
+    form.setFieldsValue({
+      schedule_type: t.schedule_type,
+      interval_minutes: t.interval_seconds ? Math.max(1, Math.round(t.interval_seconds / 60)) : 10,
+      cron: t.cron || '',
+    })
+  }
+
+  const openRuns = (t: TaskItem) => {
+    setRunsTask(t)
+    setRunsOpen(true)
+    setRunsPage(1)
+  }
+
+  const openLogs = (r: TaskRunItem) => {
+    setLogsRun(r)
+    setLogsOpen(true)
+    setLogsPage(1)
+  }
+
+  const confirmStopRun = (r: TaskRunItem) => {
+    if (!runsTask) return
+    Modal.confirm({
+      title: '停止任务？',
+      content: `run_id=${r.id}，将请求停止当前任务运行。`,
+      width: isMobile ? 'calc(100vw - 24px)' : 420,
+      centered: true,
+      okText: '停止',
+      cancelText: '取消',
+      okButtonProps: { danger: true, size: 'middle' },
+      cancelButtonProps: { size: 'middle' },
+      onOk: async () => {
+        try {
+          await tasksApi.cancel(runsTask.task_id, r.id)
+          message.success('已请求停止')
+          await refetchRuns()
+        } catch (e: any) {
+          message.error(e?.response?.data?.detail || '停止失败')
+        }
+      },
+    })
+  }
+
+  const renderTaskActions = (t: TaskItem, compact = false) => (
+    <Space wrap size={compact ? 'small' : 'middle'}>
+      <Button
+        size={compact && !isMobile ? 'small' : 'middle'}
+        icon={<PlayCircleOutlined />}
+        disabled={!isAdmin || runMutation.isPending}
+        onClick={() => runMutation.mutate(t.task_id)}
+      >
+        运行
+      </Button>
+      <Button
+        size={compact && !isMobile ? 'small' : 'middle'}
+        icon={<EditOutlined />}
+        disabled={!isAdmin}
+        onClick={() => openEdit(t)}
+      >
+        配置
+      </Button>
+      <Button
+        size={compact && !isMobile ? 'small' : 'middle'}
+        icon={<HistoryOutlined />}
+        onClick={() => openRuns(t)}
+      >
+        记录
+      </Button>
+    </Space>
+  )
+
   const columns = [
     {
       title: '任务',
@@ -174,42 +269,7 @@ export default function TasksPage() {
       title: '操作',
       key: 'actions',
       width: 220,
-      render: (_: any, t: TaskItem) => (
-        <Space>
-          <Button
-            icon={<PlayCircleOutlined />}
-            disabled={!isAdmin || runMutation.isPending}
-            onClick={() => runMutation.mutate(t.task_id)}
-          >
-            运行
-          </Button>
-          <Button
-            icon={<EditOutlined />}
-            disabled={!isAdmin}
-            onClick={() => {
-              setEditing(t)
-              setEditOpen(true)
-              form.setFieldsValue({
-                schedule_type: t.schedule_type,
-                interval_minutes: t.interval_seconds ? Math.max(1, Math.round(t.interval_seconds / 60)) : 10,
-                cron: t.cron || '',
-              })
-            }}
-          >
-            配置
-          </Button>
-          <Button
-            icon={<HistoryOutlined />}
-            onClick={() => {
-              setRunsTask(t)
-              setRunsOpen(true)
-              setRunsPage(1)
-            }}
-          >
-            记录
-          </Button>
-        </Space>
-      ),
+      render: (_: any, t: TaskItem) => renderTaskActions(t),
     },
   ]
 
@@ -247,7 +307,26 @@ export default function TasksPage() {
       title: '消息',
       dataIndex: 'message',
       key: 'message',
-      render: (v: string | null) => v ? <Text ellipsis title={v}>{v}</Text> : '-',
+      render: (v: string | null) => {
+        if (!v) return '-'
+        const progress = parseBackfillProgress(v)
+        return (
+          <div style={{ minWidth: 240 }}>
+            <Text ellipsis title={v}>{v}</Text>
+            {progress ? (
+              <div style={{ marginTop: 6 }}>
+                <Progress
+                  percent={Number(progress.percent.toFixed(1))}
+                  status={progress.errors > 0 ? 'exception' : undefined}
+                  size="small"
+                  showInfo={false}
+                />
+                <Text type="secondary">{`${progress.scanned}/${progress.total}`}</Text>
+              </div>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       title: '错误',
@@ -262,37 +341,18 @@ export default function TasksPage() {
       render: (_: any, r: TaskRunItem) => (
         <Space>
           <Button
-            size="small"
+            size={isMobile ? 'middle' : 'small'}
             onClick={() => {
-              setLogsRun(r)
-              setLogsOpen(true)
-              setLogsPage(1)
+              openLogs(r)
             }}
           >
             日志
           </Button>
           <Button
-            size="small"
+            size={isMobile ? 'middle' : 'small'}
             danger
             disabled={!isAdmin || !['running', 'queued', 'cancelling'].includes(r.status)}
-            onClick={() => {
-              if (!runsTask) return
-              Modal.confirm({
-                title: '停止任务？',
-                content: `run_id=${r.id}，将请求停止当前任务运行。`,
-                okText: '停止',
-                cancelText: '取消',
-                onOk: async () => {
-                  try {
-                    await tasksApi.cancel(runsTask.task_id, r.id)
-                    message.success('已请求停止')
-                    await refetchRuns()
-                  } catch (e: any) {
-                    message.error(e?.response?.data?.detail || '停止失败')
-                  }
-                },
-              })
-            }}
+            onClick={() => confirmStopRun(r)}
           >
             停止
           </Button>
@@ -303,10 +363,24 @@ export default function TasksPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+          gap: 8,
+        }}
+      >
         <div style={{ fontWeight: 700, fontSize: 16 }}>任务管理</div>
         <Space>
-          <Button icon={<ReloadOutlined />} loading={isFetching} onClick={() => refetch()}>
+          <Button
+            block={isMobile}
+            icon={<ReloadOutlined />}
+            loading={isFetching}
+            onClick={() => refetch()}
+          >
             刷新
           </Button>
         </Space>
@@ -318,18 +392,122 @@ export default function TasksPage() {
         </div>
       ) : null}
 
-      <Table
-        rowKey="task_id"
-        dataSource={items}
-        columns={columns as any}
-        loading={isFetching}
-        pagination={false}
-      />
+      {isMobile ? (
+        <List
+          loading={isFetching}
+          dataSource={items}
+          renderItem={(t: TaskItem) => {
+            const last = t.last_run
+            const lastProgress = parseBackfillProgress(last?.message)
+            const hasLastError = !!last && (
+              last.status === 'failed' ||
+              !!last.error ||
+              !!(lastProgress && lastProgress.errors > 0)
+            )
+            return (
+              <Card size="small" style={{ marginBottom: 10 }}>
+                {hasLastError ? (
+                  <div
+                    style={{
+                      marginBottom: 10,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      background: '#fff2f0',
+                      border: '1px solid #ffccc7',
+                    }}
+                  >
+                    <Text type="danger" strong>最近运行异常，请优先检查日志</Text>
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>{t.name}</div>
+                    <Text type="secondary">{t.task_id}</Text>
+                  </div>
+                  <Switch
+                    checked={t.enabled}
+                    disabled={!isAdmin || updateMutation.isPending}
+                    onChange={(checked) => updateMutation.mutate({ taskId: t.task_id, data: { enabled: checked } })}
+                  />
+                </div>
+                {t.description ? (
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary">{t.description}</Text>
+                  </div>
+                ) : null}
+                <div style={{ marginTop: 10 }}>
+                  <Text type="secondary">{`调度：${t.schedule_type === 'cron' ? 'Cron' : '间隔'} · ${formatSchedule(t)}`}</Text>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <Text type="secondary">{`下次执行：${t.next_run_time ? dayjs(t.next_run_time).format('YYYY-MM-DD HH:mm:ss') : '-'}`}</Text>
+                </div>
+                {last ? (
+                  <div style={{ marginTop: 10 }}>
+                    <Collapse
+                      size="small"
+                      defaultActiveKey={hasLastError ? ['last'] : []}
+                      items={[
+                        {
+                          key: 'last',
+                          label: (
+                            <Space size={6} wrap>
+                              <Text strong>最近运行</Text>
+                              {statusTag(last.status)}
+                              <Text type="secondary">{dayjs(last.started_at).format('MM-DD HH:mm:ss')}</Text>
+                            </Space>
+                          ),
+                          children: (
+                            <div>
+                              <Text type="secondary">{`耗时：${last.duration_ms != null ? `${last.duration_ms}ms` : '-'}`}</Text>
+                              {last.message ? (
+                                <div style={{ marginTop: 6 }}>
+                                  <Text ellipsis={{ tooltip: last.message }}>{last.message}</Text>
+                                  {lastProgress ? (
+                                    <Progress
+                                      style={{ marginTop: 6 }}
+                                      percent={Number(lastProgress.percent.toFixed(1))}
+                                      size="small"
+                                      status={lastProgress.errors > 0 ? 'exception' : undefined}
+                                    />
+                                  ) : null}
+                                </div>
+                              ) : null}
+                              {last.error ? (
+                                <div style={{ marginTop: 6 }}>
+                                  <Text type="danger">{last.error}</Text>
+                                </div>
+                              ) : null}
+                            </div>
+                          ),
+                        },
+                      ]}
+                    />
+                  </div>
+                ) : null}
+                <div style={{ marginTop: 10 }}>
+                  {renderTaskActions(t, true)}
+                </div>
+              </Card>
+            )
+          }}
+        />
+      ) : (
+        <Table
+          rowKey="task_id"
+          dataSource={items}
+          columns={columns as any}
+          loading={isFetching}
+          pagination={false}
+          scroll={{ x: 1080 }}
+        />
+      )}
 
       <Modal
         title={`配置任务：${editing?.name || ''}`}
         open={editOpen}
         onCancel={() => setEditOpen(false)}
+        width={isMobile ? 'calc(100vw - 24px)' : 520}
+        centered={isMobile}
         okText="保存"
         onOk={async () => {
           const values = await form.validateFields()
@@ -384,77 +562,173 @@ export default function TasksPage() {
         title={runsTask ? `执行记录：${runsTask.name}` : '执行记录'}
         open={runsOpen}
         onClose={() => setRunsOpen(false)}
-        width={900}
+        width={isMobile ? '100%' : 900}
         extra={
-          <Button icon={<ReloadOutlined />} loading={runsFetching} onClick={() => refetchRuns()}>
+          <Button size="middle" icon={<ReloadOutlined />} loading={runsFetching} onClick={() => refetchRuns()}>
             刷新
           </Button>
         }
       >
-        <Table
-          rowKey="id"
-          dataSource={(runsData?.items ?? []) as TaskRunItem[]}
-          columns={runColumns as any}
-          loading={runsFetching}
-          pagination={{
-            current: runsPage,
-            pageSize: runsPageSize,
-            total: runsData?.total ?? 0,
-            showSizeChanger: true,
-            onChange: (p, ps) => {
-              setRunsPage(p)
-              setRunsPageSize(ps)
-            },
-          }}
-        />
+        {isMobile ? (
+          <List
+            loading={runsFetching}
+            dataSource={(runsData?.items ?? []) as TaskRunItem[]}
+            pagination={{
+              current: runsPage,
+              pageSize: runsPageSize,
+              total: runsData?.total ?? 0,
+              size: 'small',
+              onChange: (p, ps) => {
+                setRunsPage(p)
+                setRunsPageSize(ps)
+              },
+            }}
+            renderItem={(r: TaskRunItem) => {
+              const progress = parseBackfillProgress(r.message)
+              return (
+                <Card size="small" style={{ marginBottom: 10 }}>
+                  <Space size={6} wrap>
+                    <Text strong>{`#${r.id}`}</Text>
+                    {statusTag(r.status)}
+                    <Text type="secondary">{dayjs(r.started_at).format('MM-DD HH:mm:ss')}</Text>
+                  </Space>
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary">{`结束：${r.finished_at ? dayjs(r.finished_at).format('MM-DD HH:mm:ss') : '-'}`}</Text>
+                  </div>
+                  <div style={{ marginTop: 6 }}>
+                    <Text type="secondary">{`耗时：${r.duration_ms != null ? `${r.duration_ms}ms` : '-'}`}</Text>
+                  </div>
+                  {r.message ? (
+                    <div style={{ marginTop: 8 }}>
+                      <Text>{r.message}</Text>
+                      {progress ? (
+                        <Progress
+                          style={{ marginTop: 6 }}
+                          percent={Number(progress.percent.toFixed(1))}
+                          size="small"
+                          status={progress.errors > 0 ? 'exception' : undefined}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {r.error ? (
+                    <div style={{ marginTop: 6 }}>
+                      <Text type="danger">{r.error}</Text>
+                    </div>
+                  ) : null}
+                  <div style={{ marginTop: 10 }}>
+                    <Space>
+                      <Button size="middle" onClick={() => openLogs(r)}>日志</Button>
+                      <Button
+                        size="middle"
+                        danger
+                        disabled={!isAdmin || !['running', 'queued', 'cancelling'].includes(r.status)}
+                        onClick={() => confirmStopRun(r)}
+                      >
+                        停止
+                      </Button>
+                    </Space>
+                  </div>
+                </Card>
+              )
+            }}
+          />
+        ) : (
+          <Table
+            rowKey="id"
+            dataSource={(runsData?.items ?? []) as TaskRunItem[]}
+            columns={runColumns as any}
+            loading={runsFetching}
+            scroll={{ x: 1000 }}
+            pagination={{
+              current: runsPage,
+              pageSize: runsPageSize,
+              total: runsData?.total ?? 0,
+              showSizeChanger: true,
+              onChange: (p, ps) => {
+                setRunsPage(p)
+                setRunsPageSize(ps)
+              },
+            }}
+          />
+        )}
       </Drawer>
 
       <Drawer
         title={`运行日志 ${logsRun?.id ?? ''}`}
         open={logsOpen}
         onClose={() => setLogsOpen(false)}
-        width={900}
+        width={isMobile ? '100%' : 900}
       >
-        <Table
-          rowKey="id"
-          dataSource={(logsData?.items ?? []) as TaskRunLogItem[]}
-          loading={logsFetching}
-          size="small"
-          pagination={{
-            current: logsPage,
-            pageSize: logsPageSize,
-            total: logsData?.total ?? 0,
-            showSizeChanger: true,
-            onChange: (p, ps) => {
-              setLogsPage(p)
-              setLogsPageSize(ps)
-            },
-          }}
-          columns={[
-            {
-              title: '时间',
-              dataIndex: 'created_at',
-              key: 'created_at',
-              width: 180,
-              render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
-            },
-            { title: '级别', dataIndex: 'level', key: 'level', width: 90,
-              render: (v: string) => {
-                if (v === 'error') return <Tag color="red">ERROR</Tag>
-                if (v === 'warn') return <Tag color="orange">WARN</Tag>
-                return <Tag>INFO</Tag>
+        {isMobile ? (
+          <List
+            loading={logsFetching}
+            dataSource={(logsData?.items ?? []) as TaskRunLogItem[]}
+            pagination={{
+              current: logsPage,
+              pageSize: logsPageSize,
+              total: logsData?.total ?? 0,
+              size: 'small',
+              onChange: (p, ps) => {
+                setLogsPage(p)
+                setLogsPageSize(ps)
               },
-            },
-            {
-              title: '内容',
-              dataIndex: 'message',
-              key: 'message',
-              render: (v: string, r: TaskRunLogItem) => (
-                <Text type={r.level === 'error' ? 'danger' : undefined} ellipsis title={v}>{v}</Text>
-              ),
-            },
-          ]}
-        />
+            }}
+            renderItem={(x: TaskRunLogItem) => (
+              <Card size="small" style={{ marginBottom: 10 }}>
+                <Space size={6} wrap>
+                  {x.level === 'error' ? <Tag color="red">ERROR</Tag> : x.level === 'warn' ? <Tag color="orange">WARN</Tag> : <Tag>INFO</Tag>}
+                  <Text type="secondary">{dayjs(x.created_at).format('MM-DD HH:mm:ss')}</Text>
+                </Space>
+                <div style={{ marginTop: 8 }}>
+                  <Text type={x.level === 'error' ? 'danger' : undefined}>{x.message}</Text>
+                </div>
+              </Card>
+            )}
+          />
+        ) : (
+          <Table
+            rowKey="id"
+            dataSource={(logsData?.items ?? []) as TaskRunLogItem[]}
+            loading={logsFetching}
+            size="small"
+            scroll={{ x: 900 }}
+            pagination={{
+              current: logsPage,
+              pageSize: logsPageSize,
+              total: logsData?.total ?? 0,
+              showSizeChanger: true,
+              onChange: (p, ps) => {
+                setLogsPage(p)
+                setLogsPageSize(ps)
+              },
+            }}
+            columns={[
+              {
+                title: '时间',
+                dataIndex: 'created_at',
+                key: 'created_at',
+                width: 180,
+                render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
+              },
+              { title: '级别', dataIndex: 'level', key: 'level', width: 90,
+                render: (v: string) => {
+                  if (v === 'error') return <Tag color="red">ERROR</Tag>
+                  if (v === 'warn') return <Tag color="orange">WARN</Tag>
+                  return <Tag>INFO</Tag>
+                },
+              },
+              {
+                title: '内容',
+                dataIndex: 'message',
+                key: 'message',
+                render: (v: string, r: TaskRunLogItem) => (
+                  <Text type={r.level === 'error' ? 'danger' : undefined} ellipsis title={v}>{v}</Text>
+                ),
+              },
+            ]}
+          />
+        )}
       </Drawer>
     </div>
   )

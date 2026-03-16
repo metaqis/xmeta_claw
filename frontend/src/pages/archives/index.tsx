@@ -91,12 +91,15 @@ export default function ArchivesPage() {
             <Space>
               <Button
                 type="primary"
+                block={isMobile}
                 disabled={!isAdmin}
                 loading={fullCrawlLoading}
                 onClick={() => {
                   Modal.confirm({
                     title: '触发全量爬取？',
                     content: '将按 UTC 时间范围执行全量爬取，并在后台运行。',
+                    width: isMobile ? 'calc(100vw - 24px)' : 420,
+                    centered: true,
                     okText: '开始',
                     cancelText: '取消',
                     onOk: async () => {
@@ -176,6 +179,7 @@ export default function ArchivesPage() {
           columns={columns}
           rowKey="archive_id"
           size="small"
+          scroll={{ x: 900 }}
           pagination={{
             total: data?.total ?? 0,
             current: params.page,
