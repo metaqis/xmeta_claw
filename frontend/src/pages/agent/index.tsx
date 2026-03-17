@@ -1,17 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Layout, Button, Input, List, Tag, Space, Popconfirm, Empty,
-  Drawer, Grid, Spin, App,
+  Drawer, Grid, Spin, App, Card, Statistic, Progress,
 } from 'antd'
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, RobotOutlined,
-  UserOutlined, MenuFoldOutlined, LoadingOutlined, MessageOutlined,
+  UserOutlined, MenuFoldOutlined, LoadingOutlined, MessageOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import {
   createSession, listSessions, deleteSession, getMessages,
-  streamChat, ChatSession, ChatMessage, SSEEvent,
+  streamChat, ChatSession, ChatMessage, SSEEvent, ChatProfiling,
 } from '../../api/agent'
 
 const { Sider, Content } = Layout
@@ -45,6 +47,7 @@ export default function AgentPage() {
   const [siderOpen, setSiderOpen] = useState(false)
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const [profiling, setProfiling] = useState<ChatProfiling | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -88,6 +91,7 @@ export default function AgentPage() {
       }
       setMessages(displayMsgs)
       setSuggestions([])
+      setProfiling(null)
     } catch {
       messageApi.error('加载消息失败')
     }
@@ -106,6 +110,7 @@ export default function AgentPage() {
       setCurrentSessionId(session.id)
       setMessages([])
       setSuggestions([])
+      setProfiling(null)
       if (isMobile) setSiderOpen(false)
     } catch {
       messageApi.error('创建会话失败')
@@ -152,6 +157,7 @@ export default function AgentPage() {
     setStreaming(true)
     setLoading(true)
     setSuggestions([])
+    setProfiling(null)
 
     const abortController = new AbortController()
     abortRef.current = abortController
@@ -183,6 +189,7 @@ export default function AgentPage() {
               break
             case 'done':
               if (event.suggestions) setSuggestions(event.suggestions)
+              if (event.profiling) setProfiling(event.profiling)
               break
             case 'error':
               messageApi.error(event.message || '请求失败')
@@ -214,6 +221,15 @@ export default function AgentPage() {
   const handleSuggestionClick = (text: string) => {
     handleSend(text)
   }
+
+  const stageEntries = profiling
+    ? Object.entries(profiling.stages || {}).sort((a, b) => a[0].localeCompare(b[0]))
+    : []
+  const llmRounds = stageEntries.filter(([k]) => k.startsWith('llm_round_'))
+  const commitRounds = stageEntries.filter(([k]) => k.startsWith('commit_round_'))
+  const totalMs = profiling?.stages?.total_ms || 0
+  const totalToolMs = (profiling?.tool_calls || []).reduce((sum, item) => sum + (item.elapsed_ms || 0), 0)
+  const truncationCount = profiling?.truncations?.length || 0
 
   // ── Suggestion chips ──
 
@@ -442,6 +458,7 @@ export default function AgentPage() {
                           <div className="markdown-body">
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}
+                              rehypePlugins={[rehypeRaw, rehypeSanitize]}
                               components={{
                                 a: ({ href, children, ...props }) => (
                                   <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
@@ -483,6 +500,90 @@ export default function AgentPage() {
                 <div style={{ marginTop: 8 }}>
                   {renderSuggestions(suggestions)}
                 </div>
+              )}
+
+              {!streaming && profiling && (
+                <Card
+                  size="small"
+                  style={{
+                    marginTop: 12,
+                    borderRadius: 10,
+                    border: '1px solid #e6f4ff',
+                    background: '#fafcff',
+                  }}
+                  title={(
+                    <Space size={6}>
+                      <ThunderboltOutlined style={{ color: '#1677ff' }} />
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>本次聊天性能</span>
+                    </Space>
+                  )}
+                >
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))',
+                    gap: 10,
+                  }}>
+                    <Card size="small" style={{ borderRadius: 8 }}>
+                      <Statistic title="总耗时" value={totalMs} precision={1} suffix="ms" />
+                    </Card>
+                    <Card size="small" style={{ borderRadius: 8 }}>
+                      <Statistic title="历史消息" value={profiling.history_message_count || 0} suffix="条" />
+                    </Card>
+                    <Card size="small" style={{ borderRadius: 8 }}>
+                      <Statistic title="工具耗时合计" value={totalToolMs} precision={1} suffix="ms" />
+                    </Card>
+                    <Card size="small" style={{ borderRadius: 8 }}>
+                      <Statistic title="截断次数" value={truncationCount} suffix="次" />
+                    </Card>
+                  </div>
+
+                  {llmRounds.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 6 }}>LLM 轮次耗时</div>
+                      <Space direction="vertical" style={{ width: '100%' }} size={6}>
+                        {llmRounds.map(([name, value]) => (
+                          <div key={name}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
+                              <span>第{name.replace('llm_round_', '').replace('_ms', '')}轮</span>
+                              <span>{Number(value).toFixed(1)} ms</span>
+                            </div>
+                            <Progress percent={Math.min(100, totalMs > 0 ? (Number(value) / totalMs) * 100 : 0)} showInfo={false} size="small" />
+                          </div>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+
+                  {(profiling.tool_calls || []).length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 6 }}>工具调用耗时</div>
+                      <Space wrap size={[8, 8]}>
+                        {profiling.tool_calls.map((item, idx) => (
+                          <Tag key={`${item.name}-${idx}`} color="blue">
+                            {item.name}: {item.elapsed_ms.toFixed(1)}ms
+                          </Tag>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+
+                  {(profiling.truncations || []).length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 6 }}>截断详情</div>
+                      <Space wrap size={[8, 8]}>
+                        {profiling.truncations.map((item, idx) => (
+                          <Tag key={`${item.tool_name || 'tool'}-${idx}`} color="gold">
+                            {(item.tool_name || 'tool')} {item.original_length}→{item.truncated_length} ({item.elapsed_ms.toFixed(3)}ms)
+                          </Tag>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 10, fontSize: 12, color: '#888' }}>
+                    工具数 {profiling.selected_tool_count || 0} · 日历意图 {profiling.calendar_intent ? '是' : '否'} · commit轮次 {commitRounds.length}
+                  </div>
+                </Card>
               )}
             </>
           )}

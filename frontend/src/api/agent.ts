@@ -27,6 +27,30 @@ export interface SSEEvent {
   label?: string
   message?: string
   suggestions?: string[]
+  profiling?: ChatProfiling
+}
+
+export interface ProfilingToolCall {
+  name: string
+  elapsed_ms: number
+  result_length: number
+}
+
+export interface ProfilingTruncation {
+  role: string
+  tool_name?: string | null
+  original_length: number
+  truncated_length: number
+  elapsed_ms: number
+}
+
+export interface ChatProfiling {
+  stages: Record<string, number>
+  tool_calls: ProfilingToolCall[]
+  truncations: ProfilingTruncation[]
+  selected_tool_count?: number
+  calendar_intent?: boolean
+  history_message_count?: number
 }
 
 // ── REST API ────────────────────────────────────

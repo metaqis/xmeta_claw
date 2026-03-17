@@ -1,7 +1,8 @@
 """Agent 核心服务：会话管理 + 流式聊天编排"""
 import json
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from time import perf_counter
+from typing import Any, AsyncGenerator, Optional
 
 from loguru import logger
 from sqlalchemy import select
@@ -15,6 +16,27 @@ from app.agent.tools import TOOLS, TOOL_NAME_MAP
 from app.agent.executor import execute_tool
 
 settings = get_settings()
+
+CALENDAR_TOOL_NAME = "get_upcoming_launches"
+CALENDAR_KEYWORDS = (
+    "日历", "发行日历", "发售日程", "发售时间", "上新时间", "发售计划", "什么时候发售",
+    "哪天发售", "即将发行", "近期发行", "最近发行", "calendar", "schedule", "upcoming",
+)
+
+
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    lower_text = text.lower()
+    return any(k in text or k in lower_text for k in keywords)
+
+
+def _is_calendar_intent(user_text: str) -> bool:
+    return _contains_any(user_text, CALENDAR_KEYWORDS)
+
+
+def _select_tools(user_text: str) -> list[dict[str, Any]]:
+    if _is_calendar_intent(user_text):
+        return TOOLS
+    return [t for t in TOOLS if t["function"]["name"] != CALENDAR_TOOL_NAME]
 
 
 # ── 会话 CRUD ────────────────────────────────────────
@@ -64,25 +86,33 @@ async def get_messages(db: AsyncSession, session_id: int, user_id: int) -> Optio
 
 # ── 历史构建 ─────────────────────────────────────────
 
-async def _load_history(db: AsyncSession, session_id: int) -> list[dict]:
-    """从 DB 加载历史消息，截断到 MAX_HISTORY，返回 OpenAI 格式列表"""
+async def _load_history(db: AsyncSession, session_id: int) -> tuple[list[dict], dict[str, Any]]:
+    started = perf_counter()
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.created_at.asc())
+        .order_by(ChatMessage.created_at.desc())
+        .limit(settings.AGENT_MAX_HISTORY)
     )
-    all_msgs = result.scalars().all()
-
+    recent = list(reversed(result.scalars().all()))
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    recent = all_msgs[-settings.AGENT_MAX_HISTORY:] if len(all_msgs) > settings.AGENT_MAX_HISTORY else all_msgs
+    truncation_events: list[dict[str, Any]] = []
 
     for m in recent:
         msg_dict: dict = {"role": m.role}
         if m.content is not None:
             content = m.content
-            # 截断过长的历史工具返回，节省 token
             if m.role == "tool" and len(content) > 1500:
+                trunc_start = perf_counter()
+                original_length = len(content)
                 content = content[:1500] + "\n...(历史数据已省略)"
+                truncation_events.append({
+                    "role": m.role,
+                    "tool_name": m.name,
+                    "original_length": original_length,
+                    "truncated_length": len(content),
+                    "elapsed_ms": round((perf_counter() - trunc_start) * 1000, 3),
+                })
             msg_dict["content"] = content
         if m.tool_calls:
             try:
@@ -95,7 +125,13 @@ async def _load_history(db: AsyncSession, session_id: int) -> list[dict]:
             msg_dict["name"] = m.name
         messages.append(msg_dict)
 
-    return messages
+    profiling = {
+        "history_load_ms": round((perf_counter() - started) * 1000, 3),
+        "history_message_count": len(recent),
+        "truncation_count": len(truncation_events),
+        "truncation_events": truncation_events,
+    }
+    return messages, profiling
 
 
 # ── 推荐问题 ─────────────────────────────────────────
@@ -170,49 +206,70 @@ async def stream_chat(
     - done:      {"type":"done", "suggestions":["...", ...]}
     - error:     {"type":"error", "message":"..."}
     """
-    # ── 验证会话 ──
+    request_started = perf_counter()
+    profiling: dict[str, Any] = {"stages": {}, "tool_calls": [], "truncations": []}
+    selected_tools = _select_tools(content)
+    profiling["selected_tool_count"] = len(selected_tools)
+    profiling["calendar_intent"] = _is_calendar_intent(content)
+    round_limit = settings.AGENT_MAX_TOOL_ROUNDS
+    if not profiling["calendar_intent"]:
+        round_limit = min(round_limit, 6)
+    stage_started = perf_counter()
     result = await db.execute(
         select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == user_id)
     )
+    profiling["stages"]["verify_session_ms"] = round((perf_counter() - stage_started) * 1000, 3)
     session = result.scalar_one_or_none()
     if not session:
         yield _sse({"type": "error", "message": "会话不存在"})
         return
 
-    # ── 保存用户消息 + 更新会话 ──
+    stage_started = perf_counter()
     db.add(ChatMessage(session_id=session_id, role="user", content=content))
     if session.title == "新对话":
         session.title = content[:50]
     session.updated_at = datetime.utcnow()
     await db.commit()
+    profiling["stages"]["save_user_message_ms"] = round((perf_counter() - stage_started) * 1000, 3)
 
     try:
-        # 从 DB 加载历史（整个请求只查一次），后续在内存追加
-        messages = await _load_history(db, session_id)
+        messages, history_profiling = await _load_history(db, session_id)
+        profiling["stages"]["load_history_ms"] = history_profiling["history_load_ms"]
+        profiling["history_message_count"] = history_profiling["history_message_count"]
+        profiling["truncations"] = history_profiling["truncation_events"]
         tools_used: list[str] = []
 
-        # ── Tool 循环（非流式） ──
-        for _round in range(settings.AGENT_MAX_TOOL_ROUNDS):
+        for _round in range(round_limit):
+            llm_started = perf_counter()
             response = await client.chat.completions.create(
                 model=settings.LLM_MODEL,
                 messages=messages,
-                tools=TOOLS,
+                tools=selected_tools,
                 temperature=settings.LLM_TEMPERATURE,
                 max_tokens=settings.LLM_MAX_TOKENS,
             )
+            profiling["stages"][f"llm_round_{_round + 1}_ms"] = round((perf_counter() - llm_started) * 1000, 3)
             choice = response.choices[0]
 
             if not choice.message.tool_calls:
-                # 无工具调用 → 直接使用此回答（省去额外一次 LLM 调用）
                 final_text = choice.message.content or ""
+                chunk_started = perf_counter()
                 for i in range(0, len(final_text), 20):
                     yield _sse({"type": "content", "text": final_text[i:i + 20]})
+                profiling["stages"]["local_chunk_emit_ms"] = round((perf_counter() - chunk_started) * 1000, 3)
                 if final_text:
+                    save_started = perf_counter()
                     db.add(ChatMessage(
                         session_id=session_id, role="assistant", content=final_text,
                     ))
                     await db.commit()
-                yield _sse({"type": "done", "suggestions": _generate_suggestions(tools_used)})
+                    profiling["stages"]["save_assistant_message_ms"] = round((perf_counter() - save_started) * 1000, 3)
+                profiling["stages"]["total_ms"] = round((perf_counter() - request_started) * 1000, 3)
+                yield _sse({
+                    "type": "done",
+                    "suggestions": _generate_suggestions(tools_used),
+                    "profiling": profiling,
+                })
                 return
 
             # ── 有 tool_calls → 执行工具 ──
@@ -242,7 +299,6 @@ async def stream_chat(
                 tool_calls=json.dumps(tc_list),
             ))
 
-            # 逐个执行工具（共享 db session，需串行）
             for tc in choice.message.tool_calls:
                 tool_name = tc.function.name
                 label = TOOL_NAME_MAP.get(tool_name, tool_name)
@@ -252,9 +308,16 @@ async def stream_chat(
                 try:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError:
-                    args = {}
-
-                tool_result = await execute_tool(tool_name, args, db)
+                    args = {"_raw_arguments": tc.function.arguments}
+                    tool_result = json.dumps({"error": "工具参数解析失败", "raw_arguments": tc.function.arguments}, ensure_ascii=False)
+                else:
+                    tool_started = perf_counter()
+                    tool_result = await execute_tool(tool_name, args, db)
+                    profiling["tool_calls"].append({
+                        "name": tool_name,
+                        "elapsed_ms": round((perf_counter() - tool_started) * 1000, 3),
+                        "result_length": len(tool_result),
+                    })
 
                 messages.append({
                     "role": "tool",
@@ -270,15 +333,15 @@ async def stream_chat(
                     name=tool_name,
                 ))
 
-            # 批量提交本轮消息
+            commit_started = perf_counter()
             await db.commit()
+            profiling["stages"][f"commit_round_{_round + 1}_ms"] = round((perf_counter() - commit_started) * 1000, 3)
             logger.debug(f"Tool round {_round + 1} done")
 
-        # ── 达到最大轮次 → 流式最终回答 ──
+        final_started = perf_counter()
         stream = await client.chat.completions.create(
             model=settings.LLM_MODEL,
             messages=messages,
-            tools=TOOLS,
             temperature=settings.LLM_TEMPERATURE,
             max_tokens=settings.LLM_MAX_TOKENS,
             stream=True,
@@ -289,14 +352,22 @@ async def stream_chat(
             if delta and delta.content:
                 full_content += delta.content
                 yield _sse({"type": "content", "text": delta.content})
+        profiling["stages"]["final_stream_ms"] = round((perf_counter() - final_started) * 1000, 3)
 
         if full_content:
+            save_started = perf_counter()
             db.add(ChatMessage(
                 session_id=session_id, role="assistant", content=full_content,
             ))
             await db.commit()
+            profiling["stages"]["save_assistant_message_ms"] = round((perf_counter() - save_started) * 1000, 3)
 
-        yield _sse({"type": "done", "suggestions": _generate_suggestions(tools_used)})
+        profiling["stages"]["total_ms"] = round((perf_counter() - request_started) * 1000, 3)
+        yield _sse({
+            "type": "done",
+            "suggestions": _generate_suggestions(tools_used),
+            "profiling": profiling,
+        })
 
     except Exception as e:
         logger.exception("Agent 聊天失败")
