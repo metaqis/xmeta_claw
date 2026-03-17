@@ -405,12 +405,13 @@ def _build_runtime_guidance(
     selected_tool_names = ", ".join(t["function"]["name"] for t in selected_tools)
     rules = [
         "本轮只使用与当前问题最相关的工具，不要为了求全而无关扩展。",
+        "当你决定调用工具时，直接发起调用，不要输出任何过渡性文字（如'让我查询'、'我将使用xxx工具'等）。",
         "如果用户给的是藏品名/IP名而不是ID，且问题涉及详情、行情、走势、对比，优先先调用 resolve_entities。",
         "如果 resolve_entities 或搜索结果存在多个高相似候选且没有明确 best_match，应先让用户确认。",
         "如果数据库结果为空，或只能模糊命中但不够确定，可继续使用 online_search_archives / online_search_ips，给用户推荐候选项。",
         "如果工具结果里包含 clarification_question 或 recommended_reply_format，优先按该提示组织回复。",
         "如果工具结果里包含 public_items 或 public_recommendations，优先使用这些无ID字段组织最终回复。",
-        "当需要用户确认候选时，优先使用编号列表；每项尽量包含名称、来源、匹配方式，结尾明确要求用户回复序号或名称。",
+        "当需要用户确认候选时，优先使用编号列表；每项只展示名称和平台，不要展示匹配方式、来源等内部元信息，结尾明确要求用户回复序号或名称。",
         "除非用户明确要求，否则最终回复里不要暴露 archive_id、ip_id、source_uid、communityIpId 等内部ID。",
         "最终回复中严禁出现工具名称（如 resolve_entities、get_hot_archives）、英文字段名（如 archive_id、dealCount、avgAmount）、JSON 结构或处理过程描述，所有数据必须翻译为自然中文呈现。",
         "get_archive_market / get_archive_price_trend 必须使用已确认的 archive_id。",
@@ -642,7 +643,7 @@ async def stream_chat(
 
         for _round in range(round_limit):
             llm_started = perf_counter()
-            # 统一使用流式调用：既支持 tool_calls 收集，又支持文本实时推送
+            # 流式调用：收集完整响应后根据是否有 tool_calls 决定输出策略
             stream = await client.chat.completions.create(
                 model=settings.LLM_MODEL,
                 messages=messages,
@@ -652,8 +653,10 @@ async def stream_chat(
                 stream=True,
             )
 
-            # 流式收集：文本内容 + tool_calls
+            # 先收集完整响应再决定是否输出
+            # 避免工具调用轮次的"思考"文本泄漏给用户
             streamed_content = ""
+            content_chunks: list[str] = []  # 保留各 chunk 以便最终答案可逐块回放
             streamed_tool_calls: dict[int, dict] = {}  # index -> {id, name, arguments}
             async for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
@@ -661,7 +664,7 @@ async def stream_chat(
                     continue
                 if delta.content:
                     streamed_content += delta.content
-                    yield _sse({"type": "content", "text": delta.content})
+                    content_chunks.append(delta.content)
                 if delta.tool_calls:
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index
@@ -677,9 +680,11 @@ async def stream_chat(
 
             profiling["stages"][f"llm_round_{_round + 1}_ms"] = round((perf_counter() - llm_started) * 1000, 3)
 
-            # 无 tool_calls → 纯文本回答，直接结束
+            # 无 tool_calls → 纯文本回答（最终答案），逐块回放保持流式体验
             if not streamed_tool_calls:
                 if streamed_content:
+                    for text_chunk in content_chunks:
+                        yield _sse({"type": "content", "text": text_chunk})
                     save_started = perf_counter()
                     db.add(ChatMessage(
                         session_id=session_id, role="assistant", content=streamed_content,
@@ -707,17 +712,15 @@ async def stream_chat(
                 for idx in sorted(streamed_tool_calls.keys())
             ]
 
-            # 内存追加 assistant(tool_calls)
+            # 内存追加 assistant(tool_calls)，丢弃思考文本避免下轮重复
             assistant_msg: dict = {"role": "assistant", "tool_calls": tc_list}
-            if streamed_content:
-                assistant_msg["content"] = streamed_content
             messages.append(assistant_msg)
 
-            # DB 追加（不立即提交）
+            # DB 追加（不立即提交），不保存思考文本
             db.add(ChatMessage(
                 session_id=session_id,
                 role="assistant",
-                content=streamed_content or None,
+                content=None,
                 tool_calls=json.dumps(tc_list),
             ))
 

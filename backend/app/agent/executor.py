@@ -134,11 +134,8 @@ def _to_public_recommendation(item: dict[str, Any], index: int) -> dict[str, Any
         "index": index,
         "name": item.get("name"),
         "entity_type": item.get("entity_type"),
-        "source_label": item.get("source_label"),
-        "match_label": item.get("match_label"),
         "platform": item.get("platform"),
         "ip": item.get("ip"),
-        "selection_label": item.get("selection_label"),
     }
 
 
@@ -149,8 +146,6 @@ def _to_public_archive_item(item: dict[str, Any], index: int | None = None) -> d
         "platform": item.get("platform"),
         "ip": item.get("ip"),
         "issue_time": item.get("issue_time"),
-        "match_label": item.get("match_label"),
-        "source_label": item.get("source_label"),
         "link": item.get("link"),
     }
     if index is not None:
@@ -164,8 +159,6 @@ def _to_public_ip_item(item: dict[str, Any], index: int | None = None) -> dict[s
         "platform": item.get("platform"),
         "fans_count": item.get("fans_count"),
         "archive_count": item.get("archive_count"),
-        "match_label": item.get("match_label"),
-        "source_label": item.get("source_label"),
         "link": item.get("link"),
     }
     if index is not None:
@@ -535,7 +528,7 @@ async def _resolve_entities(db: AsyncSession, **kwargs) -> str:
     if best_match is None and recommendations:
         recommended_reply_format = {
             "style": "numbered_list",
-            "instruction": "按 1、2、3 编号列出候选，每项包含名称、来源、匹配方式；结尾请用户回复序号或名称。",
+            "instruction": "按 1、2、3 编号列出候选，每项只显示名称和平台信息；结尾请用户回复序号或名称确认。不要展示匹配方式、来源等内部信息。",
         }
 
     public_recommendations = [
@@ -555,7 +548,7 @@ async def _resolve_entities(db: AsyncSession, **kwargs) -> str:
         "public_recommendations": public_recommendations,
         "clarification_question": clarification_question,
         "recommended_reply_format": recommended_reply_format,
-        "note": "当用户输入不完整或只有模糊名称时，优先从 public_recommendations 中给出候选让用户选择；若数据库无结果，可参考 online_archives / online_ips 继续推荐。回复时不要暴露任何ID。",
+        "note": "面向用户回复时，只使用 public_recommendations 中的名称和编号组织候选列表。严禁在回复中出现 archive_id、ip_id、source_uid、match_type、match_score、source 等内部字段，也不要提及'精确匹配'、'模糊匹配'、'来源数据库'等元信息。",
     }, ensure_ascii=False)
 
 
@@ -703,7 +696,7 @@ async def _online_search_archives(db: AsyncSession, **kwargs) -> str:
         "clarification_question": "我查到一些在线藏品候选，请回复序号或名称确认你想看的对象。" if len(items) > 1 else None,
         "recommended_reply_format": {
             "style": "numbered_list",
-            "instruction": "优先使用 public_items 按编号列出在线藏品候选，补充来源和匹配方式，再请用户确认；不要暴露任何ID。",
+            "instruction": "优先使用 public_items 按编号列出在线藏品候选，只显示名称和平台信息，再请用户确认；不要暴露任何ID或匹配元信息。",
         } if len(items) > 1 else None,
         "note": "这是在线藏品模糊查询结果，适合在数据库查不到或只有模糊命中时，先推荐给用户确认。",
     }, ensure_ascii=False)
@@ -724,7 +717,7 @@ async def _online_search_ips(db: AsyncSession, **kwargs) -> str:
         "clarification_question": "我查到一些在线IP候选，请回复序号或名称确认你想看的对象。" if len(items) > 1 else None,
         "recommended_reply_format": {
             "style": "numbered_list",
-            "instruction": "优先使用 public_items 按编号列出在线IP候选，补充来源和匹配方式，再请用户确认；不要暴露任何ID。",
+            "instruction": "优先使用 public_items 按编号列出在线IP候选，只显示名称和平台信息，再请用户确认；不要暴露任何ID或匹配元信息。",
         } if len(items) > 1 else None,
         "note": "这是在线IP模糊查询结果，适合在数据库查不到或只有模糊命中时，先推荐给用户确认。",
     }, ensure_ascii=False)
