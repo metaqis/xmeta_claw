@@ -93,11 +93,11 @@ export default function AgentPage() {
     return result
   }, [messages, streaming])
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToBottom = useCallback((instant = false) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
   }, [])
 
-  useEffect(() => { scrollToBottom() }, [messages, suggestions, scrollToBottom])
+  useEffect(() => { scrollToBottom(streaming) }, [messages, suggestions, scrollToBottom, streaming])
 
   // Load sessions on mount
   useEffect(() => {
@@ -401,15 +401,24 @@ export default function AgentPage() {
         .agent-typing-dot:nth-child(1) { animation: agentTypingDot 1.2s infinite 0s; }
         .agent-typing-dot:nth-child(2) { animation: agentTypingDot 1.2s infinite 0.2s; }
         .agent-typing-dot:nth-child(3) { animation: agentTypingDot 1.2s infinite 0.4s; }
+        .markdown-body {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
         .markdown-body table {
           border-collapse: collapse;
           margin: 8px 0;
           width: 100%;
+          table-layout: fixed;
+          overflow-x: auto;
+          display: block;
         }
         .markdown-body th, .markdown-body td {
           border: 1px solid #e8e8e8;
           padding: 6px 10px;
           font-size: 13px;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .markdown-body th {
           background: #fafafa;
@@ -418,13 +427,21 @@ export default function AgentPage() {
         .markdown-body p { margin: 0 0 8px; }
         .markdown-body p:last-child { margin-bottom: 0; }
         .markdown-body ul, .markdown-body ol { padding-left: 20px; margin: 4px 0; }
-        .markdown-body a { color: #1677ff; text-decoration: none; }
+        .markdown-body a {
+          color: #1677ff;
+          text-decoration: none;
+          word-break: break-all;
+        }
         .markdown-body a:hover { text-decoration: underline; }
         .markdown-body code {
           background: rgba(0, 0, 0, 0.04);
           border-radius: 4px;
           padding: 1px 6px;
           font-size: 0.9em;
+        }
+        .markdown-body img {
+          max-width: 100%;
+          height: auto;
         }
       `}</style>
       <Layout style={{ height: 'calc(100vh - 112px)', background: '#fff', borderRadius: 8, overflow: 'hidden' }}>

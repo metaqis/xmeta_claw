@@ -412,6 +412,7 @@ def _build_runtime_guidance(
         "如果工具结果里包含 public_items 或 public_recommendations，优先使用这些无ID字段组织最终回复。",
         "当需要用户确认候选时，优先使用编号列表；每项尽量包含名称、来源、匹配方式，结尾明确要求用户回复序号或名称。",
         "除非用户明确要求，否则最终回复里不要暴露 archive_id、ip_id、source_uid、communityIpId 等内部ID。",
+        "最终回复中严禁出现工具名称（如 resolve_entities、get_hot_archives）、英文字段名（如 archive_id、dealCount、avgAmount）、JSON 结构或处理过程描述，所有数据必须翻译为自然中文呈现。",
         "get_archive_market / get_archive_price_trend 必须使用已确认的 archive_id。",
         "get_ip_detail 必须使用已确认的 ip_id。",
         "若用户是追问且最近上下文已有明确实体，可优先沿用最近实体；若仍不确定，再追问。",
