@@ -5,8 +5,29 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "resolve_entities",
+            "description": "按用户提供的名称或ID片段，综合解析最可能的藏品或IP。适用于用户只给名称，却要查详情、行情、走势、对比等场景。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "用户输入的藏品名、IP名、别名或ID片段",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多返回多少个候选，默认5",
+                    },
+                },
+                "required": ["keyword"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_archives",
-            "description": "搜索藏品库。可按藏品名称、IP名称、平台ID筛选，支持分页。",
+            "description": "搜索藏品库。可按藏品名称、藏品ID、IP名称、平台ID筛选，支持分页；结果会尽量把更精确匹配排在前面。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -46,7 +67,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_ips",
-            "description": "搜索 IP（创作者/发行方），可按名称搜索。",
+            "description": "搜索 IP（创作者/发行方），可按名称搜索；结果会尽量把更精确匹配排在前面。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -64,8 +85,50 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "online_search_archives",
+            "description": "在线模糊查询藏品。适合数据库查不到、用户只给了不完整名字、或需要给用户推荐候选项时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "用户输入的藏品名称片段、别名或关键字",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多返回多少个候选，默认10",
+                    },
+                },
+                "required": ["keyword"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "online_search_ips",
+            "description": "在线模糊查询IP。适合数据库查不到、用户只给了不完整名字、或需要给用户推荐候选项时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "用户输入的IP名称片段、别名或关键字",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多返回多少个候选，默认10",
+                    },
+                },
+                "required": ["keyword"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_ip_detail",
-            "description": "获取 IP 详情及其旗下藏品列表。",
+            "description": "获取 IP 详情及其旗下藏品列表。优先使用数据库中的 ip_id；若只有在线查询得到的 source_uid，也可用于获取在线IP资料。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -73,8 +136,16 @@ TOOLS = [
                         "type": "integer",
                         "description": "IP 的数据库 ID",
                     },
+                    "source_uid": {
+                        "type": "integer",
+                        "description": "在线IP查询结果中的 source_uid / communityIpId；当数据库中不存在该IP时可使用",
+                    },
+                    "from_type": {
+                        "type": "integer",
+                        "description": "在线IP来源类型，默认1",
+                    },
                 },
-                "required": ["ip_id"],
+                "required": [],
             },
         },
     },
@@ -294,9 +365,12 @@ TOOLS.extend([
 ])
 
 TOOL_NAME_MAP = {
+    "resolve_entities": "实体解析",
     "search_archives": "搜索藏品",
     "get_archive_detail": "藏品详情",
     "search_ips": "搜索IP",
+    "online_search_archives": "在线藏品查询",
+    "online_search_ips": "在线IP查询",
     "get_ip_detail": "IP详情",
     "get_upcoming_launches": "发行日历",
     "get_db_stats": "数据概览",

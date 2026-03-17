@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Layout, Button, Input, List, Tag, Space, Popconfirm, Empty,
-  Drawer, Grid, Spin, App, Card, Statistic, Progress,
+  Drawer, Grid, Spin, App,
 } from 'antd'
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, RobotOutlined,
-  UserOutlined, MenuFoldOutlined, LoadingOutlined, MessageOutlined, ThunderboltOutlined,
+  UserOutlined, MenuFoldOutlined, LoadingOutlined, MessageOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -13,7 +14,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import {
   createSession, listSessions, deleteSession, getMessages,
-  streamChat, ChatSession, ChatMessage, SSEEvent, ChatProfiling,
+  streamChat, ChatSession, ChatMessage, SSEEvent,
 } from '../../api/agent'
 
 const { Sider, Content } = Layout
@@ -33,6 +34,10 @@ interface DisplayMessage {
   toolLabel?: string
 }
 
+type RenderItem =
+  | DisplayMessage
+  | { role: 'tool_group'; tools: string[] }
+
 export default function AgentPage() {
   const { message: messageApi } = App.useApp()
   const screens = useBreakpoint()
@@ -47,13 +52,46 @@ export default function AgentPage() {
   const [siderOpen, setSiderOpen] = useState(false)
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
-  const [profiling, setProfiling] = useState<ChatProfiling | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const avatarSize = isMobile ? 28 : 32
   const bubbleMaxWidth = isMobile ? '88%' : '80%'
+
+  // Group consecutive tool_call messages into compact summaries when not actively streaming
+  const renderItems: RenderItem[] = useMemo(() => {
+    const result: RenderItem[] = []
+    let toolGroup: string[] = []
+
+    const flushToolGroup = () => {
+      if (toolGroup.length === 0) return
+      result.push({ role: 'tool_group', tools: [...toolGroup] })
+      toolGroup = []
+    }
+
+    for (const msg of messages) {
+      if (msg.role === 'tool_call') {
+        toolGroup.push(msg.toolLabel || msg.content)
+      } else {
+        flushToolGroup()
+        result.push(msg)
+      }
+    }
+
+    // Trailing tool calls: show individually during streaming, group when done
+    if (toolGroup.length > 0) {
+      if (streaming) {
+        for (const tool of toolGroup) {
+          result.push({ role: 'tool_call', content: tool, toolLabel: tool })
+        }
+      } else {
+        flushToolGroup()
+      }
+    }
+
+    return result
+  }, [messages, streaming])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,7 +129,6 @@ export default function AgentPage() {
       }
       setMessages(displayMsgs)
       setSuggestions([])
-      setProfiling(null)
     } catch {
       messageApi.error('加载消息失败')
     }
@@ -110,7 +147,6 @@ export default function AgentPage() {
       setCurrentSessionId(session.id)
       setMessages([])
       setSuggestions([])
-      setProfiling(null)
       if (isMobile) setSiderOpen(false)
     } catch {
       messageApi.error('创建会话失败')
@@ -157,7 +193,6 @@ export default function AgentPage() {
     setStreaming(true)
     setLoading(true)
     setSuggestions([])
-    setProfiling(null)
 
     const abortController = new AbortController()
     abortRef.current = abortController
@@ -189,7 +224,6 @@ export default function AgentPage() {
               break
             case 'done':
               if (event.suggestions) setSuggestions(event.suggestions)
-              if (event.profiling) setProfiling(event.profiling)
               break
             case 'error':
               messageApi.error(event.message || '请求失败')
@@ -222,15 +256,6 @@ export default function AgentPage() {
     handleSend(text)
   }
 
-  const stageEntries = profiling
-    ? Object.entries(profiling.stages || {}).sort((a, b) => a[0].localeCompare(b[0]))
-    : []
-  const llmRounds = stageEntries.filter(([k]) => k.startsWith('llm_round_'))
-  const commitRounds = stageEntries.filter(([k]) => k.startsWith('commit_round_'))
-  const totalMs = profiling?.stages?.total_ms || 0
-  const totalToolMs = (profiling?.tool_calls || []).reduce((sum, item) => sum + (item.elapsed_ms || 0), 0)
-  const truncationCount = profiling?.truncations?.length || 0
-
   // ── Suggestion chips ──
 
   const renderSuggestions = (items: string[]) => {
@@ -246,18 +271,8 @@ export default function AgentPage() {
         {items.map((s, i) => (
           <div
             key={i}
+            className="agent-suggestion-chip"
             onClick={() => handleSuggestionClick(s)}
-            style={{
-              cursor: 'pointer',
-              borderRadius: 16,
-              padding: isMobile ? '6px 12px' : '6px 14px',
-              fontSize: 13,
-              border: '1px solid #1677ff',
-              color: '#1677ff',
-              background: '#f0f5ff',
-              whiteSpace: 'nowrap',
-              userSelect: 'none',
-            }}
           >
             {s}
           </div>
@@ -335,291 +350,303 @@ export default function AgentPage() {
   // ── Main render ──
 
   return (
-    <Layout style={{ height: 'calc(100vh - 112px)', background: '#fff', borderRadius: 8, overflow: 'hidden' }}>
-      {/* Sidebar */}
-      {isMobile ? (
-        <Drawer
-          placement="left"
-          open={siderOpen}
-          onClose={() => setSiderOpen(false)}
-          width={280}
-          styles={{ body: { padding: 0 } }}
-          title="会话列表"
-        >
-          {siderContent}
-        </Drawer>
-      ) : (
-        <Sider
-          width={280}
-          style={{
-            background: '#fafafa',
-            borderRight: '1px solid #f0f0f0',
-          }}
-        >
-          {siderContent}
-        </Sider>
-      )}
+    <>
+      <style>{`
+        .agent-suggestion-chip {
+          cursor: pointer;
+          border-radius: 16px;
+          padding: 6px 14px;
+          font-size: 13px;
+          border: 1px solid #1677ff;
+          color: #1677ff;
+          background: #f0f5ff;
+          white-space: nowrap;
+          user-select: none;
+          transition: all 0.2s ease;
+        }
+        .agent-suggestion-chip:hover {
+          background: #1677ff;
+          color: #fff;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(22, 119, 255, 0.3);
+        }
+        .agent-suggestion-chip:active {
+          transform: translateY(0);
+          box-shadow: 0 1px 4px rgba(22, 119, 255, 0.2);
+        }
+        .agent-tool-summary {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          margin: 6px 0;
+          animation: agentFadeIn 0.3s ease;
+        }
+        @keyframes agentFadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes agentTypingDot {
+          0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+          30% { opacity: 1; transform: translateY(-4px); }
+        }
+        .agent-typing-dot {
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #1677ff;
+          margin: 0 2px;
+        }
+        .agent-typing-dot:nth-child(1) { animation: agentTypingDot 1.2s infinite 0s; }
+        .agent-typing-dot:nth-child(2) { animation: agentTypingDot 1.2s infinite 0.2s; }
+        .agent-typing-dot:nth-child(3) { animation: agentTypingDot 1.2s infinite 0.4s; }
+        .markdown-body table {
+          border-collapse: collapse;
+          margin: 8px 0;
+          width: 100%;
+        }
+        .markdown-body th, .markdown-body td {
+          border: 1px solid #e8e8e8;
+          padding: 6px 10px;
+          font-size: 13px;
+        }
+        .markdown-body th {
+          background: #fafafa;
+          font-weight: 600;
+        }
+        .markdown-body p { margin: 0 0 8px; }
+        .markdown-body p:last-child { margin-bottom: 0; }
+        .markdown-body ul, .markdown-body ol { padding-left: 20px; margin: 4px 0; }
+        .markdown-body a { color: #1677ff; text-decoration: none; }
+        .markdown-body a:hover { text-decoration: underline; }
+        .markdown-body code {
+          background: rgba(0, 0, 0, 0.04);
+          border-radius: 4px;
+          padding: 1px 6px;
+          font-size: 0.9em;
+        }
+      `}</style>
+      <Layout style={{ height: 'calc(100vh - 112px)', background: '#fff', borderRadius: 8, overflow: 'hidden' }}>
+        {/* Sidebar */}
+        {isMobile ? (
+          <Drawer
+            placement="left"
+            open={siderOpen}
+            onClose={() => setSiderOpen(false)}
+            width={280}
+            styles={{ body: { padding: 0 } }}
+            title="会话列表"
+          >
+            {siderContent}
+          </Drawer>
+        ) : (
+          <Sider
+            width={280}
+            style={{
+              background: '#fafafa',
+              borderRight: '1px solid #f0f0f0',
+            }}
+          >
+            {siderContent}
+          </Sider>
+        )}
 
-      {/* Chat area */}
-      <Content style={{ display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <div style={{
-          padding: isMobile ? '6px 12px' : '8px 16px',
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          minHeight: isMobile ? 40 : 48,
-        }}>
-          {isMobile && (
-            <Button
-              type="text"
-              icon={<MenuFoldOutlined />}
-              onClick={() => setSiderOpen(true)}
-            />
-          )}
-          <RobotOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1677ff' }} />
-          <span style={{ fontWeight: 600, fontSize: isMobile ? 14 : 16 }}>AI 数据助手</span>
-        </div>
+        {/* Chat area */}
+        <Content style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <div style={{
+            padding: isMobile ? '6px 12px' : '8px 16px',
+            borderBottom: '1px solid #f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minHeight: isMobile ? 40 : 48,
+          }}>
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuFoldOutlined />}
+                onClick={() => setSiderOpen(true)}
+              />
+            )}
+            <RobotOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1677ff' }} />
+            <span style={{ fontWeight: 600, fontSize: isMobile ? 14 : 16 }}>AI 数据助手</span>
+          </div>
 
-        {/* Messages */}
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: isMobile ? '12px' : '16px',
-          WebkitOverflowScrolling: 'touch',
-        }}>
-          {messages.length === 0 && !loading ? (
-            <Empty
-              image={<RobotOutlined style={{ fontSize: isMobile ? 48 : 64, color: '#d9d9d9' }} />}
-              description={
-                <span style={{ color: '#999', fontSize: isMobile ? 13 : 14 }}>
-                  你好！我是鲸探数据助手，可以查询藏品、IP、行情等数据。
-                </span>
-              }
-              style={{ marginTop: isMobile ? 40 : 80 }}
-            >
-              {renderSuggestions(DEFAULT_SUGGESTIONS)}
-            </Empty>
-          ) : (
-            <>
-              {messages.map((msg, idx) => {
-                if (msg.role === 'tool_call') {
+          {/* Messages */}
+          <div style={{
+            flex: 1,
+            overflow: 'auto',
+            padding: isMobile ? '12px' : '16px',
+            WebkitOverflowScrolling: 'touch',
+          }}>
+            {messages.length === 0 && !loading ? (
+              <Empty
+                image={<RobotOutlined style={{ fontSize: isMobile ? 48 : 64, color: '#d9d9d9' }} />}
+                description={
+                  <span style={{ color: '#999', fontSize: isMobile ? 13 : 14 }}>
+                    你好！我是鲸探数据助手，可以查询藏品、IP、行情等数据。
+                  </span>
+                }
+                style={{ marginTop: isMobile ? 40 : 80 }}
+              >
+                {renderSuggestions(DEFAULT_SUGGESTIONS)}
+              </Empty>
+            ) : (
+              <>
+                {renderItems.map((item, idx) => {
+                  // Completed tool group: compact summary
+                  if (item.role === 'tool_group') {
+                    return (
+                      <div key={idx} className="agent-tool-summary">
+                        <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                        <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                          已调用 {item.tools.join('、')}
+                        </span>
+                      </div>
+                    )
+                  }
+
+                  // Active tool call (streaming in progress)
+                  if (item.role === 'tool_call') {
+                    return (
+                      <div key={idx} style={{ textAlign: 'center', margin: '6px 0' }}>
+                        <Tag icon={<LoadingOutlined />} color="processing">
+                          {item.toolLabel || item.content}
+                        </Tag>
+                      </div>
+                    )
+                  }
+
+                  const isUser = item.role === 'user'
+
                   return (
-                    <div key={idx} style={{ textAlign: 'center', margin: '8px 0' }}>
-                      <Tag
-                        icon={<LoadingOutlined />}
-                        color="processing"
-                      >
-                        {msg.toolLabel || msg.content}
-                      </Tag>
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: isUser ? 'flex-end' : 'flex-start',
+                        marginBottom: isMobile ? 12 : 16,
+                      }}
+                    >
+                      <Space align="start" style={{ maxWidth: bubbleMaxWidth, flexDirection: isUser ? 'row-reverse' : 'row' }}>
+                        <div style={{
+                          width: avatarSize,
+                          height: avatarSize,
+                          borderRadius: '50%',
+                          background: isUser ? '#1677ff' : '#f0f0f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          {isUser
+                            ? <UserOutlined style={{ color: '#fff', fontSize: isMobile ? 12 : 14 }} />
+                            : <RobotOutlined style={{ color: '#1677ff', fontSize: isMobile ? 12 : 14 }} />
+                          }
+                        </div>
+                        <div style={{
+                          padding: isMobile ? '6px 12px' : '8px 14px',
+                          borderRadius: 12,
+                          background: isUser ? '#1677ff' : '#f5f5f5',
+                          color: isUser ? '#fff' : '#333',
+                          lineHeight: 1.6,
+                          wordBreak: 'break-word',
+                        }}>
+                          {isUser ? (
+                            <div style={{ whiteSpace: 'pre-wrap' }}>{item.content}</div>
+                          ) : (
+                            <div className="markdown-body">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                                components={{
+                                  a: ({ href, children, ...props }) => (
+                                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                                      {children}
+                                    </a>
+                                  ),
+                                }}
+                              >
+                                {item.content}
+                              </ReactMarkdown>
+                            </div>
+                          )}
+                        </div>
+                      </Space>
                     </div>
                   )
-                }
+                })}
 
-                const isUser = msg.role === 'user'
-
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      justifyContent: isUser ? 'flex-end' : 'flex-start',
-                      marginBottom: isMobile ? 12 : 16,
-                    }}
-                  >
-                    <Space align="start" style={{ maxWidth: bubbleMaxWidth, flexDirection: isUser ? 'row-reverse' : 'row' }}>
+                {loading && (
+                  <div style={{ display: 'flex', marginBottom: isMobile ? 12 : 16 }}>
+                    <Space align="start">
                       <div style={{
-                        width: avatarSize,
-                        height: avatarSize,
-                        borderRadius: '50%',
-                        background: isUser ? '#1677ff' : '#f0f0f0',
+                        width: avatarSize, height: avatarSize, borderRadius: '50%',
+                        background: '#f0f0f0', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <RobotOutlined style={{ color: '#1677ff', fontSize: isMobile ? 12 : 14 }} />
+                      </div>
+                      <div style={{
+                        padding: isMobile ? '10px 16px' : '12px 18px',
+                        borderRadius: 12,
+                        background: '#f5f5f5',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
+                        gap: 2,
                       }}>
-                        {isUser
-                          ? <UserOutlined style={{ color: '#fff', fontSize: isMobile ? 12 : 14 }} />
-                          : <RobotOutlined style={{ color: '#1677ff', fontSize: isMobile ? 12 : 14 }} />
-                        }
-                      </div>
-                      <div style={{
-                        padding: isMobile ? '6px 12px' : '8px 14px',
-                        borderRadius: 12,
-                        background: isUser ? '#1677ff' : '#f5f5f5',
-                        color: isUser ? '#fff' : '#333',
-                        lineHeight: 1.6,
-                        wordBreak: 'break-word',
-                      }}>
-                        {isUser ? (
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                        ) : (
-                          <div className="markdown-body">
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                              components={{
-                                a: ({ href, children, ...props }) => (
-                                  <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                                    {children}
-                                  </a>
-                                ),
-                              }}
-                            >
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
-                        )}
+                        <span className="agent-typing-dot" />
+                        <span className="agent-typing-dot" />
+                        <span className="agent-typing-dot" />
                       </div>
                     </Space>
                   </div>
-                )
-              })}
+                )}
 
-              {loading && (
-                <div style={{ display: 'flex', marginBottom: isMobile ? 12 : 16 }}>
-                  <Space align="start">
-                    <div style={{
-                      width: avatarSize, height: avatarSize, borderRadius: '50%',
-                      background: '#f0f0f0', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <RobotOutlined style={{ color: '#1677ff', fontSize: isMobile ? 12 : 14 }} />
-                    </div>
-                    <div style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 12, background: '#f5f5f5' }}>
-                      <Spin size="small" />
-                      <span style={{ marginLeft: 8, color: '#999', fontSize: isMobile ? 12 : 14 }}>思考中...</span>
-                    </div>
-                  </Space>
-                </div>
-              )}
-
-              {/* Suggestion chips after messages */}
-              {!streaming && suggestions.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  {renderSuggestions(suggestions)}
-                </div>
-              )}
-
-              {!streaming && profiling && (
-                <Card
-                  size="small"
-                  style={{
-                    marginTop: 12,
-                    borderRadius: 10,
-                    border: '1px solid #e6f4ff',
-                    background: '#fafcff',
-                  }}
-                  title={(
-                    <Space size={6}>
-                      <ThunderboltOutlined style={{ color: '#1677ff' }} />
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>本次聊天性能</span>
-                    </Space>
-                  )}
-                >
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))',
-                    gap: 10,
-                  }}>
-                    <Card size="small" style={{ borderRadius: 8 }}>
-                      <Statistic title="总耗时" value={totalMs} precision={1} suffix="ms" />
-                    </Card>
-                    <Card size="small" style={{ borderRadius: 8 }}>
-                      <Statistic title="历史消息" value={profiling.history_message_count || 0} suffix="条" />
-                    </Card>
-                    <Card size="small" style={{ borderRadius: 8 }}>
-                      <Statistic title="工具耗时合计" value={totalToolMs} precision={1} suffix="ms" />
-                    </Card>
-                    <Card size="small" style={{ borderRadius: 8 }}>
-                      <Statistic title="截断次数" value={truncationCount} suffix="次" />
-                    </Card>
+                {/* Suggestion chips after messages */}
+                {!streaming && suggestions.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    {renderSuggestions(suggestions)}
                   </div>
+                )}
+              </>
+            )}
 
-                  {llmRounds.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 6 }}>LLM 轮次耗时</div>
-                      <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                        {llmRounds.map(([name, value]) => (
-                          <div key={name}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
-                              <span>第{name.replace('llm_round_', '').replace('_ms', '')}轮</span>
-                              <span>{Number(value).toFixed(1)} ms</span>
-                            </div>
-                            <Progress percent={Math.min(100, totalMs > 0 ? (Number(value) / totalMs) * 100 : 0)} showInfo={false} size="small" />
-                          </div>
-                        ))}
-                      </Space>
-                    </div>
-                  )}
-
-                  {(profiling.tool_calls || []).length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 6 }}>工具调用耗时</div>
-                      <Space wrap size={[8, 8]}>
-                        {profiling.tool_calls.map((item, idx) => (
-                          <Tag key={`${item.name}-${idx}`} color="blue">
-                            {item.name}: {item.elapsed_ms.toFixed(1)}ms
-                          </Tag>
-                        ))}
-                      </Space>
-                    </div>
-                  )}
-
-                  {(profiling.truncations || []).length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 6 }}>截断详情</div>
-                      <Space wrap size={[8, 8]}>
-                        {profiling.truncations.map((item, idx) => (
-                          <Tag key={`${item.tool_name || 'tool'}-${idx}`} color="gold">
-                            {(item.tool_name || 'tool')} {item.original_length}→{item.truncated_length} ({item.elapsed_ms.toFixed(3)}ms)
-                          </Tag>
-                        ))}
-                      </Space>
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: 10, fontSize: 12, color: '#888' }}>
-                    工具数 {profiling.selected_tool_count || 0} · 日历意图 {profiling.calendar_intent ? '是' : '否'} · commit轮次 {commitRounds.length}
-                  </div>
-                </Card>
-              )}
-            </>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div style={{
-          padding: isMobile ? '10px 12px' : '12px 16px',
-          borderTop: '1px solid #f0f0f0',
-          background: '#fafafa',
-        }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <TextArea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={isMobile ? '输入问题...' : '输入问题... (Shift+Enter 换行)'}
-              autoSize={{ minRows: 1, maxRows: 4 }}
-              disabled={streaming}
-              style={{ borderRadius: 8, fontSize: 14 }}
-            />
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              onClick={() => handleSend()}
-              loading={streaming}
-              disabled={!input.trim() && !streaming}
-              style={{ height: 'auto', borderRadius: 8, minWidth: isMobile ? 40 : undefined }}
-            >
-              {!isMobile && '发送'}
-            </Button>
+            <div ref={messagesEndRef} />
           </div>
-        </div>
-      </Content>
-    </Layout>
+
+          {/* Input */}
+          <div style={{
+            padding: isMobile ? '10px 12px' : '12px 16px',
+            borderTop: '1px solid #f0f0f0',
+            background: '#fafafa',
+          }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <TextArea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isMobile ? '输入问题...' : '输入问题... (Shift+Enter 换行)'}
+                autoSize={{ minRows: 1, maxRows: 4 }}
+                disabled={streaming}
+                style={{ borderRadius: 8, fontSize: 14 }}
+              />
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                onClick={() => handleSend()}
+                loading={streaming}
+                disabled={!input.trim() && !streaming}
+                style={{ height: 'auto', borderRadius: 8, minWidth: isMobile ? 40 : undefined }}
+              >
+                {!isMobile && '发送'}
+              </Button>
+            </div>
+          </div>
+        </Content>
+      </Layout>
+    </>
   )
 }

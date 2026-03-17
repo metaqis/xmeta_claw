@@ -25,10 +25,10 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     LLM_MODEL: str = "qwen-plus"
-    LLM_MAX_TOKENS: int = 4096
-    LLM_TEMPERATURE: float = 0.3
-    AGENT_MAX_HISTORY: int = 40
-    AGENT_MAX_TOOL_ROUNDS: int = 10
+    LLM_MAX_TOKENS: int = 6144
+    LLM_TEMPERATURE: float = 0.2
+    AGENT_MAX_HISTORY: int = 20
+    AGENT_MAX_TOOL_ROUNDS: int = 6
 
     # Admin
     ADMIN_USERNAME: str = "admin"

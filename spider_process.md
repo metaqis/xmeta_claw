@@ -5424,7 +5424,7 @@ Response body
 }
 ```
 
-### 在线藏品查询
+### 在线藏品或iP查询
 
 request URL https://api.x-metash.cn/h5/home/searchAppNew
 
