@@ -1,0 +1,37 @@
+# 接口名称: 获取日历详细数据
+# 来源文档: spider_process.md
+# 说明: 根据日历记录 ID 获取完整详情，返回购买说明、包含藏品、关联藏品等数据。
+
+@baseUrl = https://api.x-metash.cn
+
+### 获取日历详细数据
+POST {{baseUrl}}/h5/news/launchCalendar/detailed
+Content-Type: application/json
+
+{
+  "id": 4692
+}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": {
+#     "id": 4692,
+#     "priorityPurchaseTime": "2026-03-13 11:00:00",
+#     "contextCondition": "<p>优先购说明...</p>",
+#     "status": "ON_SALE",
+#     "containArchiveList": [
+#       {
+#         "associatedArchiveId": 54865,
+#         "archiveName": "示例包含藏品"
+#       }
+#     ],
+#     "associationArchiveList": [
+#       {
+#         "associatedArchiveId": 54866,
+#         "archiveName": "示例关联藏品"
+#       }
+#     ]
+#   }
+# }

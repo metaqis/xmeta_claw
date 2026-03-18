@@ -1,0 +1,29 @@
+# 接口名称: 获取行情分类
+# 来源文档: spider_process.md
+# 说明: 查询行情榜单分类配置，如鲸探50、禁出195、新品等。
+
+@baseUrl = https://api.x-metash.cn
+
+### 获取行情分类
+POST {{baseUrl}}/h5/market/topList
+Content-Type: application/json
+
+{}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": [
+#     {
+#       "id": 3,
+#       "name": "鲸探50",
+#       "code": "759475",
+#       "sort": 1,
+#       "showType": 1,
+#       "status": true,
+#       "archiveType": 2,
+#       "isOpenImpactFraction": false
+#     }
+#   ]
+# }

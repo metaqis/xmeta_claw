@@ -1,0 +1,41 @@
+# 接口名称: 获取分类下热门成交数据
+# 来源文档: spider_process.md
+# 说明: 根据 `topCode` 拉取某个行情分类下的成交排行。
+
+@baseUrl = https://api.x-metash.cn
+
+### 获取分类下热门成交数据
+POST {{baseUrl}}/h5/market/topArchivePage
+Content-Type: application/json
+
+{
+  "timeType": 0,
+  "pageNum": 1,
+  "pageSize": 50,
+  "topCode": "759475"
+}
+
+### 带完整筛选字段的请求样本
+POST {{baseUrl}}/h5/market/topArchivePage
+Content-Type: application/json
+
+{
+  "timeType": 0,
+  "pageNum": 1,
+  "pageSize": 50,
+  "dealCountSortType": false,
+  "platformIdList": [],
+  "communityIpIdList": [],
+  "isAllPlatform": null,
+  "isAllCommunityIp": null,
+  "minPrice": null,
+  "maxPrice": null,
+  "beginTime": null,
+  "endTime": null,
+  "searchName": "",
+  "planeCode": null,
+  "topCode": "759475"
+}
+
+### 完整响应样本
+# 见: 10_market_top_archive_page.response.json

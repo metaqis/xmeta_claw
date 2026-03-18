@@ -57,3 +57,18 @@ async def init_db():
                 ")"
             )
         )
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS planes ("
+                "id SERIAL PRIMARY KEY,"
+                "source_id INTEGER,"
+                "code VARCHAR(50) UNIQUE NOT NULL,"
+                "name VARCHAR(100) NOT NULL,"
+                "img VARCHAR(500),"
+                "description TEXT,"
+                "created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),"
+                "updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()"
+                ")"
+            )
+        )
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_planes_code ON planes (code)"))

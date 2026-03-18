@@ -1,0 +1,28 @@
+# 接口名称: 藏品价格查询
+# 来源文档: spider_process.md
+# 说明: 查询指定藏品的市场总额、成交量、最低价等汇总指标。
+
+@baseUrl = https://api.x-metash.cn
+
+### 藏品价格查询
+POST {{baseUrl}}/h5/archive/archiveMarket
+Content-Type: application/json
+
+{
+  "timeType": 0,
+  "archiveId": 54866
+}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": {
+#     "marketAmount": 497280.0,
+#     "marketAmountRate": 2.89,
+#     "dealCount": 39,
+#     "dealCountRate": 22.67,
+#     "minPrice": 82.88,
+#     "minPriceRate": 2.89
+#   }
+# }

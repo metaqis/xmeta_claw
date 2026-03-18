@@ -1,0 +1,35 @@
+# 接口名称: 最新版块统计
+# 来源文档: spider_process.md
+# 说明: 获取版块列表及对应的市场统计指标。
+
+@baseUrl = https://api.x-metash.cn
+
+### 最新版块统计
+POST {{baseUrl}}/h5/plane/listNew
+Content-Type: application/json
+
+{
+  "type": 0,
+  "pageNum": 1,
+  "pageSize": 100
+}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": [
+#     {
+#       "id": 4,
+#       "name": "个创板块",
+#       "code": "00000004",
+#       "description": "个创板块",
+#       "avgPrice": -0.61,
+#       "dealPrice": 0.0,
+#       "dealCount": 1502,
+#       "shelvesRate": 1.3742,
+#       "totalMarketValue": 753836311.15,
+#       "isFollow": false
+#     }
+#   ]
+# }

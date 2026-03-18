@@ -1,0 +1,12 @@
+{
+  "code" : 200,
+  "msg" : "成功",
+  "data" : {
+    "marketAmount" : 497280.00,
+    "marketAmountRate" : 2.89,
+    "dealCount" : 39,
+    "dealCountRate" : 22.67,
+    "minPrice" : 82.88,
+    "minPriceRate" : 2.89
+  }
+}

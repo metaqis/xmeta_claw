@@ -18,6 +18,15 @@ export interface ArchiveListResponse {
   items: ArchiveItem[]
 }
 
+export interface PlaneItem {
+  code: string
+  name: string
+}
+
+export interface PlaneListResponse {
+  items: PlaneItem[]
+}
+
 export interface ArchiveDetail {
   archive_id: string
   archive_name: string
@@ -35,6 +44,8 @@ export interface ArchiveDetail {
 export interface ArchiveParams {
   platform_id?: number
   ip_id?: number
+  plane_name?: string
+  plane_code?: string
   search?: string
   sort_by?: string
   page?: number
@@ -44,5 +55,7 @@ export interface ArchiveParams {
 export const archiveApi = {
   list: (params: ArchiveParams): Promise<ArchiveListResponse> =>
     request.get('/archives/', { params }),
+  planes: (): Promise<PlaneListResponse> =>
+    request.get('/archives/planes'),
   detail: (id: string): Promise<ArchiveDetail> => request.get(`/archives/${id}`),
 }

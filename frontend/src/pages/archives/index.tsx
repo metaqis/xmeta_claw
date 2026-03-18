@@ -23,6 +23,10 @@ export default function ArchivesPage() {
     queryKey: ['archives', params],
     queryFn: () => archiveApi.list(params),
   })
+  const { data: planeData, isLoading: planeLoading } = useQuery({
+    queryKey: ['archive-planes'],
+    queryFn: () => archiveApi.planes(),
+  })
 
   const goDetail = (id: string) => navigate(`/archives/${id}`)
 
@@ -85,6 +89,18 @@ export default function ArchivesPage() {
                 { label: '最早发行', value: 'time_asc' },
               ]}
               onChange={(v) => setParams((p) => ({ ...p, sort_by: v, page: 1 }))}
+            />
+          </Col>
+          <Col xs={12} sm={6} md={4}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="板块"
+              allowClear
+              showSearch
+              loading={planeLoading}
+              options={(planeData?.items ?? []).map((x) => ({ label: x.name, value: x.name }))}
+              optionFilterProp="label"
+              onChange={(v) => setParams((p) => ({ ...p, plane_name: v || undefined, page: 1 }))}
             />
           </Col>
           <Col xs={24} sm={6} md={4} style={{ display: 'flex', justifyContent: 'flex-end' }}>

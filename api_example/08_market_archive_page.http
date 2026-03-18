@@ -1,0 +1,53 @@
+# 接口名称: 市场成交列表 / 板块交易明细
+# 来源文档: spider_process.md
+# 说明: 同一路径支持通用成交热榜与按板块筛选的成交明细。
+
+@baseUrl = https://api.x-metash.cn
+
+### 获取今日成交热榜
+POST {{baseUrl}}/h5/market/marketArchivePage
+Content-Type: application/json
+
+{
+  "timeType": 0,
+  "pageNum": 1,
+  "pageSize": 50,
+  "dealCountSortType": false,
+  "platformIdList": [],
+  "communityIpIdList": [],
+  "isAllPlatform": null,
+  "isAllCommunityIp": null,
+  "minPrice": null,
+  "maxPrice": null,
+  "beginTime": null,
+  "endTime": null,
+  "searchName": "",
+  "planeCode": null,
+  "topCode": ""
+}
+
+### 获取板块交易明细
+POST {{baseUrl}}/h5/market/marketArchivePage
+Content-Type: application/json
+
+{
+  "timeType": 0,
+  "pageNum": 1,
+  "pageSize": 50,
+  "dealCountSortType": false,
+  "platformIdList": [],
+  "communityIpIdList": [],
+  "isAllPlatform": null,
+  "isAllCommunityIp": null,
+  "minPrice": null,
+  "maxPrice": null,
+  "beginTime": null,
+  "endTime": null,
+  "searchName": "",
+  "planeCode": "00000001",
+  "topCode": ""
+}
+
+### 完整响应样本
+# 今日成交热榜: 08_market_archive_page_hot.response.json
+# 板块交易明细: 08_market_archive_page_plane_00000001.response.json

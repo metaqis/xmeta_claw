@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from app.database.db import get_db
-from app.database.models import Archive, Platform, IP
+from app.database.models import Archive, Platform, IP, Plane
 from app.api.auth import get_current_user
 
 router = APIRouter(prefix="/archives", tags=["藏品"])
@@ -48,10 +48,32 @@ class ArchiveDetailResponse(BaseModel):
     img: Optional[str] = None
 
 
+class PlaneItem(BaseModel):
+    code: str
+    name: str
+
+
+class PlaneListResponse(BaseModel):
+    items: list[PlaneItem]
+
+
+@router.get("/planes", response_model=PlaneListResponse)
+async def get_plane_list(
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    result = await db.execute(select(Plane).order_by(Plane.name.asc(), Plane.code.asc()))
+    planes = result.scalars().all()
+    items = [PlaneItem(code=p.code, name=p.name) for p in planes]
+    return PlaneListResponse(items=items)
+
+
 @router.get("/", response_model=ArchiveListResponse)
 async def get_archives(
     platform_id: Optional[int] = None,
     ip_id: Optional[int] = None,
+    plane_name: Optional[str] = Query(None, description="版块名称"),
+    plane_code: Optional[str] = Query(None, description="版块编码"),
     search: Optional[str] = None,
     sort_by: Optional[str] = Query(None, description="排序: time_desc, time_asc"),
     page: int = Query(1, ge=1),
@@ -74,6 +96,16 @@ async def get_archives(
     if ip_id:
         query = query.where(Archive.ip_id == ip_id)
         count_query = count_query.where(Archive.ip_id == ip_id)
+    if plane_name:
+        query = query.where(Archive.archive_type == plane_name)
+        count_query = count_query.where(Archive.archive_type == plane_name)
+    elif plane_code:
+        plane_result = await db.execute(select(Plane).where(Plane.code == plane_code))
+        plane = plane_result.scalar_one_or_none()
+        if not plane:
+            raise HTTPException(status_code=404, detail="版块不存在")
+        query = query.where(Archive.archive_type == plane.name)
+        count_query = count_query.where(Archive.archive_type == plane.name)
     if search:
         query = query.where(Archive.archive_name.ilike(f"%{search}%"))
         count_query = count_query.where(Archive.archive_name.ilike(f"%{search}%"))

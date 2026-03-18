@@ -1,0 +1,19 @@
+# 接口名称: 在线藏品 / IP 查询
+# 来源文档: spider_process.md
+# 说明: 根据关键字搜索在线藏品或 IP。
+
+@baseUrl = https://api.x-metash.cn
+
+### 搜索在线藏品 / IP
+POST {{baseUrl}}/h5/home/searchAppNew
+Content-Type: application/json
+
+{
+  "pageNum": 1,
+  "pageSize": 10,
+  "search": "五牛图",
+  "isShowArchive": true
+}
+
+### 完整响应样本
+# 见: 13_home_search_app_new.response.json

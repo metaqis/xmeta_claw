@@ -106,6 +106,19 @@ class Archive(Base):
     ip = relationship("IP", back_populates="archives")
 
 
+class Plane(Base):
+    __tablename__ = "planes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_id = Column(Integer, index=True)
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    img = Column(String(500))
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TaskConfig(Base):
     __tablename__ = "task_configs"
 

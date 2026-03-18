@@ -1,0 +1,155 @@
+{
+  "code" : 200,
+  "msg" : "成功",
+  "data" : {
+    "censusList" : [ {
+      "avgPrice" : 77.1235,
+      "dealPrice" : 1311.1,
+      "minPrice" : 75.5,
+      "dealCount" : 17,
+      "date" : 1773471600
+    }, {
+      "avgPrice" : 78.7509,
+      "dealPrice" : 866.26,
+      "minPrice" : 77,
+      "dealCount" : 11,
+      "date" : 1773475200
+    }, {
+      "avgPrice" : 79.094,
+      "dealPrice" : 1581.88,
+      "minPrice" : 78.88,
+      "dealCount" : 20,
+      "date" : 1773478800
+    }, {
+      "avgPrice" : 79.5253,
+      "dealPrice" : 1192.88,
+      "minPrice" : 78.99,
+      "dealCount" : 15,
+      "date" : 1773482400
+    }, {
+      "avgPrice" : 80.07,
+      "dealPrice" : 1120.98,
+      "minPrice" : 79.5,
+      "dealCount" : 14,
+      "date" : 1773486000
+    }, {
+      "avgPrice" : 79.7,
+      "dealPrice" : 398.5,
+      "minPrice" : 79.5,
+      "dealCount" : 5,
+      "date" : 1773489600
+    }, {
+      "avgPrice" : 105.6114,
+      "dealPrice" : 739.28,
+      "minPrice" : 78.88,
+      "dealCount" : 7,
+      "date" : 1773493200
+    }, {
+      "avgPrice" : 80.8067,
+      "dealPrice" : 484.84,
+      "minPrice" : 79.5,
+      "dealCount" : 6,
+      "date" : 1773496800
+    }, {
+      "avgPrice" : 82.135,
+      "dealPrice" : 657.08,
+      "minPrice" : 79,
+      "dealCount" : 8,
+      "date" : 1773500400
+    }, {
+      "avgPrice" : 80,
+      "dealPrice" : 160,
+      "minPrice" : 80,
+      "dealCount" : 2,
+      "date" : 1773504000
+    }, {
+      "avgPrice" : 81.0967,
+      "dealPrice" : 486.58,
+      "minPrice" : 80,
+      "dealCount" : 6,
+      "date" : 1773507600
+    }, {
+      "avgPrice" : 0,
+      "dealPrice" : 0,
+      "minPrice" : 80,
+      "dealCount" : 0,
+      "date" : 1773511200
+    }, {
+      "avgPrice" : 0,
+      "dealPrice" : 0,
+      "minPrice" : 80,
+      "dealCount" : 0,
+      "date" : 1773514800
+    }, {
+      "avgPrice" : 0,
+      "dealPrice" : 0,
+      "minPrice" : 80,
+      "dealCount" : 0,
+      "date" : 1773518400
+    }, {
+      "avgPrice" : 0,
+      "dealPrice" : 0,
+      "minPrice" : 80,
+      "dealCount" : 0,
+      "date" : 1773522000
+    }, {
+      "avgPrice" : 0,
+      "dealPrice" : 0,
+      "minPrice" : 80,
+      "dealCount" : 0,
+      "date" : 1773525600
+    }, {
+      "avgPrice" : 80,
+      "dealPrice" : 80,
+      "minPrice" : 80,
+      "dealCount" : 1,
+      "date" : 1773529200
+    }, {
+      "avgPrice" : 80.275,
+      "dealPrice" : 160.55,
+      "minPrice" : 80,
+      "dealCount" : 2,
+      "date" : 1773532800
+    }, {
+      "avgPrice" : 80.924,
+      "dealPrice" : 404.62,
+      "minPrice" : 80.88,
+      "dealCount" : 5,
+      "date" : 1773536400
+    }, {
+      "avgPrice" : 82.2609,
+      "dealPrice" : 1809.74,
+      "minPrice" : 81.22,
+      "dealCount" : 22,
+      "date" : 1773540000
+    }, {
+      "avgPrice" : 82.465,
+      "dealPrice" : 164.93,
+      "minPrice" : 82.33,
+      "dealCount" : 2,
+      "date" : 1773543600
+    }, {
+      "avgPrice" : 83.29,
+      "dealPrice" : 249.87,
+      "minPrice" : 82.88,
+      "dealCount" : 3,
+      "date" : 1773547200
+    }, {
+      "avgPrice" : 82.73,
+      "dealPrice" : 248.19,
+      "minPrice" : 82.65,
+      "dealCount" : 3,
+      "date" : 1773550800
+    }, {
+      "avgPrice" : 83.5000,
+      "dealPrice" : 83.50,
+      "minPrice" : 83.50,
+      "dealCount" : 1,
+      "date" : 1773553628
+    } ],
+    "avgPrice" : 82.07,
+    "dealPrice" : 12200.78,
+    "minPrice" : 75.5,
+    "dealCount" : 150
+  }
+}

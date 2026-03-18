@@ -1,0 +1,24 @@
+# 接口名称: 板块列表
+# 来源文档: spider_process.md
+# 说明: 获取全部市场板块编码与名称。
+
+@baseUrl = https://api.x-metash.cn
+
+### 板块列表
+GET {{baseUrl}}/h5/market/planeList
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": [
+#     {
+#       "name": "字画板块",
+#       "code": "00000001"
+#     },
+#     {
+#       "name": "文物板块",
+#       "code": "00000002"
+#     }
+#   ]
+# }

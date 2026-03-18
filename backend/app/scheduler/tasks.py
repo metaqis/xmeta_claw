@@ -17,6 +17,7 @@ from app.crawler.ip_uid_backfill import backfill_ip_source_uid
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
+from app.services.plane_importer import import_planes_to_db
 
 scheduler = AsyncIOScheduler()
 _RUNNING_TASKS: Dict[int, asyncio.Task] = {}
@@ -148,6 +149,12 @@ async def task_ip_uid_backfill(db, run_id: int):
     await _log_run(db, run_id, "info", f"IP source_uid 补齐完成: 处理 {processed} 更新 {updated}")
 
 
+async def task_import_planes(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始导入板块")
+    count = await import_planes_to_db(db)
+    await _log_run(db, run_id, "info", f"板块导入完成: {count}")
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
         "name": "今日日历",
@@ -201,6 +208,13 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_ip_uid_backfill,
+    },
+    "import_planes_weekly": {
+        "name": "板块周导入",
+        "description": "每周导入并更新板块列表",
+        "default_schedule_type": "cron",
+        "default_cron": "0 3 * * 1",
+        "func": task_import_planes,
     },
 }
 

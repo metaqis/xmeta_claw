@@ -1,0 +1,35 @@
+# 接口名称: 藏品销售折线图
+# 来源文档: spider_process.md
+# 说明: 查询指定藏品的成交趋势数据。
+
+@baseUrl = https://api.x-metash.cn
+
+### 藏品销售折线图
+POST {{baseUrl}}/h5/archiveCensus/line
+Content-Type: application/json
+
+{
+  "archiveId": 54866,
+  "type": 1
+}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": {
+#     "censusList": [
+#       {
+#         "avgPrice": 77.1235,
+#         "dealPrice": 1311.1,
+#         "minPrice": 75.5,
+#         "dealCount": 17,
+#         "date": 1773471600
+#       }
+#     ],
+#     "avgPrice": 82.07,
+#     "dealPrice": 12200.78,
+#     "minPrice": 75.5,
+#     "dealCount": 150
+#   }
+# }

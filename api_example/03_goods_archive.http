@@ -1,0 +1,42 @@
+# 接口名称: 获取藏品详细数据
+# 来源文档: spider_process.md
+# 说明: 根据 `archiveId` 获取藏品详情，并可用于补齐 IP、类型、数量等信息。
+
+@baseUrl = https://api.x-metash.cn
+
+### 获取藏品详细数据
+POST {{baseUrl}}/h5/goods/archive
+Content-Type: application/json
+
+{
+  "archiveId": "54865",
+  "platformId": "741",
+  "active": "6",
+  "page": 1,
+  "pageSize": 20,
+  "sellStatus": 1
+}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": {
+#     "archiveId": 54865,
+#     "archiveName": "示例藏品",
+#     "issueTime": "2026-03-13 12:00:00",
+#     "archiveImage": "https://...",
+#     "totalGoodsCount": 12000,
+#     "planeCodeJson": [
+#       {
+#         "name": "字画板块"
+#       }
+#     ],
+#     "isOpenAuction": true,
+#     "isOpenWantBuy": true,
+#     "ipId": 30,
+#     "ipName": "故宫观唐",
+#     "ipAvatar": "https://...",
+#     "archiveDescription": "示例描述"
+#   }
+# }

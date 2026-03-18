@@ -1,0 +1,10 @@
+{
+  "code" : 200,
+  "data" : {
+    "uid" : 30,
+    "nickname" : "故宫观唐",
+    "avatar" : "...",
+    "description" : "以故宫《石渠宝笈》著录历代书画为核心...",
+    "userType" : 1
+  }
+}
