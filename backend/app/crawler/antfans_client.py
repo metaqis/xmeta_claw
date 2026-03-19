@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import random
 import time
 from typing import Any, Optional
 
@@ -44,6 +45,12 @@ def _encode_payload(payload_obj: Any) -> bytes:
     return json.dumps(payload_obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
+def _jitter_delay(base: float, jitter_ratio: float) -> float:
+    ratio = max(0.0, min(1.0, jitter_ratio))
+    jitter = base * random.uniform(-ratio, ratio)
+    return max(0.1, base + jitter)
+
+
 class AntFansClient:
     def __init__(self):
         self.base_url = (settings.ANTFANS_API_BASE or "https://mgs-normal.antfans.com").rstrip("/")
@@ -56,6 +63,8 @@ class AntFansClient:
         self.x_app_sys_id = (settings.ANTFANS_X_APP_SYS_ID or "").strip()
         self.sign_type = (settings.ANTFANS_SIGN_TYPE or "0").strip()
         self.extra_headers = settings.ANTFANS_EXTRA_HEADERS or {}
+        self.delay = float(settings.ANTFANS_REQUEST_DELAY or 0)
+        self.delay_jitter_ratio = float(settings.ANTFANS_REQUEST_DELAY_JITTER_RATIO or 0)
 
         self._client: Optional[httpx.AsyncClient] = None
         self._lock = asyncio.Lock()
@@ -133,7 +142,16 @@ class AntFansClient:
         headers = self.build_headers(operation_type=operation_type, body=body, ts=ts, sign=sign)
         client = await self._get_client()
         async with self._semaphore:
-            return await client.post(url, content=body, headers=headers, timeout=timeout)
+            resp = await client.post(url, content=body, headers=headers, timeout=timeout)
+            if resp.status_code in (429, 502, 503, 504):
+                raise httpx.HTTPStatusError(
+                    f"mgw status={resp.status_code}",
+                    request=resp.request,
+                    response=resp,
+                )
+            if self.delay > 0:
+                await asyncio.sleep(_jitter_delay(self.delay, self.delay_jitter_ratio))
+            return resp
 
     async def post_mgw_safe(
         self,
@@ -167,4 +185,3 @@ class AntFansClient:
 
 
 antfans_client = AntFansClient()
-

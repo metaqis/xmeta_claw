@@ -73,6 +73,14 @@ Authorization: Bearer {{token}}
 
 [{"pageNum":1,"pageSize":20}]
 
+### 触发后端入库爬虫(鲸探藏品库 sku wiki)
+POST {{backendUrl}}/crawler/jingtan/sku-wiki
+Authorization: Bearer {{token}}
+
+### 通过任务系统触发爬取(会写入 task_runs / task_run_logs)
+POST {{backendUrl}}/tasks/crawl_jingtan_sku_wiki/run
+Authorization: Bearer {{token}}
+
 ### 原始响应样本
 # {
 #   "bizStatusCode": 10000,

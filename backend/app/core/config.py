@@ -39,7 +39,9 @@ class Settings(BaseSettings):
         "x-platform": "Android",
         "Accept-Language": "zh-Hans",
     }
-    ANTFANS_CONCURRENCY: int = 2
+    ANTFANS_CONCURRENCY: int = 1
+    ANTFANS_REQUEST_DELAY: float = 1.0
+    ANTFANS_REQUEST_DELAY_JITTER_RATIO: float = 0.4
 
     # LLM (qwen-plus via DashScope OpenAI-compatible API)
     LLM_API_KEY: str = ""

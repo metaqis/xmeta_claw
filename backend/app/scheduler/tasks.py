@@ -15,6 +15,7 @@ from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar
 from app.crawler.calendar_crawler import crawl_calendar_for_date, crawl_calendar_range, crawl_calendar_backward_until_no_data
 from app.crawler.ip_uid_backfill import backfill_ip_source_uid
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
+from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
 from app.services.plane_importer import import_planes_to_db
@@ -155,6 +156,17 @@ async def task_import_planes(db, run_id: int):
     await _log_run(db, run_id, "info", f"板块导入完成: {count}")
 
 
+async def task_crawl_jingtan_sku_wiki(db, run_id: int):
+    logger.info("定时任务: 鲸探藏品库(sku wiki)")
+    await _log_run(db, run_id, "info", "开始爬取鲸探藏品库(sku wiki)")
+
+    async def _on_page(page: int, fetched: int, upserted: int):
+        await _log_run(db, run_id, "info", f"sku wiki page {page}: 拉取 {fetched} 入库 {upserted}")
+
+    fetched, upserted = await crawl_jingtan_sku_wiki(db, on_page_done=_on_page)
+    await _log_run(db, run_id, "info", f"爬取完成: 拉取 {fetched} 入库 {upserted}")
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
         "name": "今日日历",
@@ -215,6 +227,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_schedule_type": "cron",
         "default_cron": "0 3 * * 1",
         "func": task_import_planes,
+    },
+    "crawl_jingtan_sku_wiki": {
+        "name": "鲸探藏品库",
+        "description": "爬取并更新鲸探藏品库(sku wiki)",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_crawl_jingtan_sku_wiki,
     },
 }
 

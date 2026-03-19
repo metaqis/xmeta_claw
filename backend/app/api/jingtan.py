@@ -1,11 +1,16 @@
+from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func, select
 
-from app.api.auth import require_admin
+from app.api.auth import get_current_user, require_admin
 from app.core.config import get_settings
 from app.crawler.antfans_client import antfans_client
+from app.database.db import get_db
+from app.database.models import JingtanSkuWiki
+from sqlalchemy.ext.asyncio import AsyncSession
 
 settings = get_settings()
 
@@ -34,3 +39,96 @@ async def sku_wiki_list(
         payload_obj=payload_obj,
     )
     return AntFansProxyResponse(status=result["status"], data=result["json"], text=result["text"])
+
+
+class JingtanSkuWikiItem(BaseModel):
+    sku_id: str
+    sku_name: str
+    author: Optional[str] = None
+    owner: Optional[str] = None
+    partner: Optional[str] = None
+    partner_name: Optional[str] = None
+    first_category: Optional[str] = None
+    first_category_name: Optional[str] = None
+    second_category: Optional[str] = None
+    second_category_name: Optional[str] = None
+    quantity_type: Optional[str] = None
+    sku_quantity: Optional[int] = None
+    sku_type: Optional[str] = None
+    sku_issue_time_ms: Optional[int] = None
+    sku_producer: Optional[str] = None
+    mini_file_url: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class JingtanSkuWikiListResponse(BaseModel):
+    total: int
+    items: list[JingtanSkuWikiItem]
+
+
+class JingtanSkuWikiDetailResponse(JingtanSkuWikiItem):
+    raw_json: Optional[str] = None
+
+
+@router.get("/sku-wikis", response_model=JingtanSkuWikiListResponse)
+async def list_sku_wikis(
+    search: Optional[str] = None,
+    first_category: Optional[str] = None,
+    second_category: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    query = select(JingtanSkuWiki)
+    count_query = select(func.count(JingtanSkuWiki.sku_id))
+
+    if first_category:
+        query = query.where(JingtanSkuWiki.first_category == first_category)
+        count_query = count_query.where(JingtanSkuWiki.first_category == first_category)
+    if second_category:
+        query = query.where(JingtanSkuWiki.second_category == second_category)
+        count_query = count_query.where(JingtanSkuWiki.second_category == second_category)
+    if search:
+        like = f"%{search}%"
+        query = query.where(
+            JingtanSkuWiki.sku_id.ilike(like)
+            | JingtanSkuWiki.sku_name.ilike(like)
+            | JingtanSkuWiki.author.ilike(like)
+            | JingtanSkuWiki.owner.ilike(like)
+        )
+        count_query = count_query.where(
+            JingtanSkuWiki.sku_id.ilike(like)
+            | JingtanSkuWiki.sku_name.ilike(like)
+            | JingtanSkuWiki.author.ilike(like)
+            | JingtanSkuWiki.owner.ilike(like)
+        )
+
+    query = query.order_by(JingtanSkuWiki.sku_issue_time_ms.desc().nullslast(), JingtanSkuWiki.sku_id.desc())
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    result = await db.execute(query.offset((page - 1) * page_size).limit(page_size))
+    items = [JingtanSkuWikiItem.model_validate(x) for x in result.scalars().all()]
+    return JingtanSkuWikiListResponse(total=total, items=items)
+
+
+@router.get("/sku-wikis/{sku_id}", response_model=JingtanSkuWikiDetailResponse)
+async def get_sku_wiki_detail(
+    sku_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    result = await db.execute(select(JingtanSkuWiki).where(JingtanSkuWiki.sku_id == sku_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="未找到该藏品")
+    return JingtanSkuWikiDetailResponse(
+        **JingtanSkuWikiItem.model_validate(item).model_dump(),
+        raw_json=item.raw_json,
+    )

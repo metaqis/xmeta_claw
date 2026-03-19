@@ -10,6 +10,7 @@ from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar
 from app.crawler.calendar_crawler import crawl_calendar_range, crawl_calendar_for_date
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
 from app.crawler.archive_crawler import crawl_archives
+from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
 
 router = APIRouter(prefix="/crawler", tags=["爬虫管理"])
 
@@ -61,3 +62,15 @@ async def crawl_date(
     bg.add_task(_task)
     return CrawlResponse(message=f"日历爬取已启动: {date}")
 
+
+@router.post("/jingtan/sku-wiki", response_model=CrawlResponse)
+async def crawl_jingtan_sku_wiki_full(
+    bg: BackgroundTasks,
+    _admin=Depends(require_admin),
+):
+    async def _task():
+        async with async_session() as db:
+            await crawl_jingtan_sku_wiki(db)
+
+    bg.add_task(_task)
+    return CrawlResponse(message="鲸探藏品库(sku wiki)爬取已启动")

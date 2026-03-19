@@ -15,6 +15,7 @@ from app.scheduler.tasks import (
     apply_task_config,
     cancel_task_run,
     create_task_run,
+    ensure_task_configs,
     run_task_by_run_id,
     scheduler,
 )
@@ -102,8 +103,15 @@ async def list_tasks(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
+    await ensure_task_configs()
     result = await db.execute(select(TaskConfig).order_by(TaskConfig.task_id.asc()))
     configs = [c for c in result.scalars().all() if c.task_id in TASK_DEFINITIONS]
+    for cfg in configs:
+        if not scheduler.get_job(cfg.task_id):
+            try:
+                await apply_task_config(cfg.task_id)
+            except Exception:
+                pass
 
     items: list[TaskItem] = []
     for cfg in configs:

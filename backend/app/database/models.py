@@ -106,6 +106,30 @@ class Archive(Base):
     ip = relationship("IP", back_populates="archives")
 
 
+class JingtanSkuWiki(Base):
+    __tablename__ = "jingtan_sku_wikis"
+
+    sku_id = Column(String(50), primary_key=True)
+    sku_name = Column(String(300), nullable=False, index=True)
+    author = Column(String(200))
+    owner = Column(String(300))
+    partner = Column(String(50))
+    partner_name = Column(String(100))
+    first_category = Column(String(50), index=True)
+    first_category_name = Column(String(100))
+    second_category = Column(String(50), index=True)
+    second_category_name = Column(String(100))
+    quantity_type = Column(String(50))
+    sku_quantity = Column(Integer)
+    sku_type = Column(String(50))
+    sku_issue_time_ms = Column(BigInteger, index=True)
+    sku_producer = Column(String(50))
+    mini_file_url = Column(String(500))
+    raw_json = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Plane(Base):
     __tablename__ = "planes"
 
