@@ -54,6 +54,25 @@ Referer: https://mgs-normal.antfans.com/mgw.htm
 
 [{"pageNum":1,"pageSize":20}]
 
+@backendUrl = http://localhost:8000
+@token = <token>
+
+### 后端登录(获取 token)
+POST {{backendUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### 通过后端代理获取 SKU 列表
+POST {{backendUrl}}/jingtan/sku-wiki-list
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+[{"pageNum":1,"pageSize":20}]
+
 ### 原始响应样本
 # {
 #   "bizStatusCode": 10000,

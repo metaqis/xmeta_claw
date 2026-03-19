@@ -10,9 +10,10 @@ from app.core.config import get_settings
 from app.core.security import get_password_hash
 from app.database.db import init_db, async_session
 from app.database.models import User
-from app.api import auth, calendar, archives, ips, stats, crawler, tasks, agent
+from app.api import auth, calendar, archives, ips, stats, crawler, tasks, agent, jingtan
 from app.scheduler.tasks import start_scheduler, stop_scheduler
 from app.crawler.client import crawler_client
+from app.crawler.antfans_client import antfans_client
 from app.core.cache import close_redis
 
 settings = get_settings()
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
     yield
     stop_scheduler()
     await crawler_client.close()
+    await antfans_client.close()
     await close_redis()
     logger.info("已关闭")
 
@@ -69,6 +71,7 @@ app.include_router(stats.router)
 app.include_router(crawler.router)
 app.include_router(tasks.router)
 app.include_router(agent.router)
+app.include_router(jingtan.router)
 
 
 @app.get("/")

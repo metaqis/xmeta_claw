@@ -21,6 +21,26 @@ class Settings(BaseSettings):
     CRAWLER_CONCURRENCY: int = 3  # 最大并发请求数
     CRAWLER_PROXY: str = ""  # 代理地址，如 http://user:pass@host:port
 
+    # AntFans (鲸探 App 内部网关)
+    ANTFANS_API_BASE: str = "https://mgs-normal.antfans.com"
+    ANTFANS_OPERATION_TYPE_QUERY_SKU_WIKI: str = (
+        "com.antgroup.antchain.mymobileprod.common.service.facade.scope.social.querySkuWiki"
+    )
+    ANTFANS_SIGN_SECRET: str = ""
+    ANTFANS_SIGN_TYPE: str = "0"
+    ANTFANS_DID: str = "TEMP-abtToO7CtX8DAP2YUJu3pHSY"
+    ANTFANS_APP_ID: str = "ALIPUB059F038311550"
+    ANTFANS_WORKSPACE_ID: str = "prod"
+    ANTFANS_PRODUCT_VERSION: str = "1.8.5.241219194812"
+    ANTFANS_PRODUCT_ID: str = "ALIPUB059F038311550_ANDROID"
+    ANTFANS_X_APP_SYS_ID: str = "com.antfans.fans"
+    ANTFANS_EXTRA_HEADERS: dict[str, str] = {
+        "x-source": "fans",
+        "x-platform": "Android",
+        "Accept-Language": "zh-Hans",
+    }
+    ANTFANS_CONCURRENCY: int = 2
+
     # LLM (qwen-plus via DashScope OpenAI-compatible API)
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
