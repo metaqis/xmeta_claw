@@ -1,0 +1,142 @@
+# 接口名称: 鲸探 SKU 详情
+# 来源: https://mgs-normal.antfans.com/mgw.htm
+# 说明: 查询单个藏品详情页数据
+# 响应状态: 200 OK
+
+@baseUrl = https://mgs-normal.antfans.com
+
+### 获取 SKU 详情
+POST {{baseUrl}}/mgw.htm
+Content-Type: application/json
+Operation-Type: com.antgroup.antchain.mymobileprod.common.service.facade.scope.social.querySKUHomepage
+x-source: fans
+lastclickspm: a2811.b48054.c116674.d241966
+x-universe-version: 26.3.1.1
+pagets: https://render.alipay.com/p/yuyan/180020010001255931/fans/collectionPreview.html?skuId=1109980&requestFrom=&prePath=%2FobjectCyclopedia.html&deepExtra=__Pq5XI/5_
+x-universe-source: fans-main
+nbversion: 26.3.1.0
+x-user-agent: Mozilla/5.0 (Linux; Android 9; SM-G977N Build/LMY48Z; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/92.0.4515.131 Mobile Safari/537.36 NebulaSDK/1.8.100112 Nebula AntFans/Android AliApp(AP/10.2.70.00000024) mPaaSClient
+mtraceid: c69affdf-8827-44c2-b49d-b65016cf2325
+x-h5-version: 5.4
+x-platform: Android
+nbappid: 68687967
+srcspm:
+x-fans-version: 2.48.1
+x-68687967-version: 26.3.1.0
+x-device-token: <x-device-token>
+x-device-color: <x-device-color>
+x-device-model: SM-G9810
+x-fans-utdid: <x-fans-utdid>
+x-device-ap-token: <x-device-ap-token>
+x-device-utdid: abtToO7CtX8DAP2YUJu3pHSY
+uid:
+Platform: ANDROID
+AppId: ALIPUB059F038311550
+WorkspaceId: prod
+productVersion: 1.8.5.241219194812
+productId: ALIPUB059F038311550_ANDROID
+Version: 2
+Did: TEMP-abtToO7CtX8DAP2YUJu3pHSY
+Ts: Pq5XJBc
+Sign: <sign>
+signType: 0
+x-app-sys-Id: com.antfans.fans
+Cookie: <cookie>
+RpcId: 43
+TRACEID: TEMP-abtToO7CtX8DAP2YUJu3pHSYPq5XJBc_43
+Retryable2: 0
+Accept-Language: zh-Hans
+Accept-Encoding: gzip
+Connection: Keep-Alive
+Host: mgs-normal.antfans.com
+User-Agent: Android_Ant_Client
+
+{
+  "skuId": "1109980"
+}
+
+### 原始响应样本
+# {
+#   "bizStatusCode": 10000,
+#   "bizStatusMessage": "",
+#   "commentNum": 1,
+#   "miniFeedNum": 6,
+#   "producerInfoModel": {
+#     "certificationName": "官方认证",
+#     "certificationType": "2",
+#     "followStatus": "FOLLOW",
+#     "produceAmount": 51,
+#     "producerAvatar": "https://mdn.alipayobjects.com/afts/img/A*AAdRRY6Cg0AAAAAAAAAAAAAAAQAAAQ/original?bz=fans",
+#     "producerAvatarType": "normal",
+#     "producerFansUid": "1322722666115590",
+#     "producerName": " 辽宁省博物馆"
+#   },
+#   "showCommentList": true,
+#   "showMiniFeedList": true,
+#   "skuCollectionInfo": {
+#     "collectNum": 28,
+#     "skuId": "1109980",
+#     "userCollectStatus": false
+#   },
+#   "skuHomepageModel": {
+#     "author": "辽宁省博物馆",
+#     "bgConf": "IMAGE",
+#     "bgInfo": "https://mdn.alipayobjects.com/chain_myent/afts/img/Vad6SLoZLnUAAAAAcWAAAAgAevN2AQBr/original?t=8FS5bmI4wH3W5kPPl-cGgFAGP8F6C2AE_lDFq1Bb5IIDAAAAZAAAdvNphbff",
+#     "bizType": "DEFAULT",
+#     "hasItem": false,
+#     "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/8nHpT4_ccQUAAAAAWMAAAAgAevN2AQBr/original",
+#     "originFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/file/OgWZS5CrDV8AAAAAT1AAAAgAevN2AQBr",
+#     "owner": "北京启航源科技有限公司",
+#     "partner": "JINGTAN",
+#     "partnerName": "鲸探",
+#     "quantityType": "LIMIT_QUANTITY",
+#     "skuDesc": "唐代韩干（传）《神骏图》卷以晋代“支遁爱马”典故为核心叙事主题，是中国古代画马题材的传世名作，于2006年入选国家邮政局特种邮票，是研究中国古代鞍马画演变及宋代绘画风格的重要实物。本卷是现存古代鞍马题材中构图最奇崛、意境最超逸的杰作之一，被徐邦达鉴定为“宋人精摹唐风之典范”，兼具盛唐气象与宋代文人理想，是辽宁省博物馆镇馆之宝。此图历代传为唐代韩干原作，经当代学者考证应属北宋摹本，但其艺术价值与历史意义均被学界高度认可。",
+#     "skuDescImageFileIds": [
+#       "https://mdn.alipayobjects.com/chain_myent/afts/img/miaISLCKzqEAAAAAfcAAAAgAevN2AQBr/original"
+#     ],
+#     "skuId": "1109980",
+#     "skuIssueTime": 1770961942000,
+#     "skuName": "韩干（传）《神骏图》卷",
+#     "skuProducer": "1322722666115590",
+#     "skuQuantity": 8000,
+#     "skuType": "THREE_DIMENSIONS"
+#   }
+# }
+
+
+
+
+	POST /mgw.htm HTTP/1.1
+x-fans-version	2.48.1
+x-68687967-version	26.3.1.0
+x-device-token	eYOIkrztWTdd2rF65WiniJK9j9dFBnlq5qRc7CLRPii+iJu11CiaV0J1
+x-device-model	SM-G9810
+x-fans-utdid	009&51bf66abW5WKCpn31x5swZ2Yj8sNHg==
+x-source	fans
+x-platform	Android
+x-device-ap-token	TLJcEQip7Qm/5bBy5wJ5meskOZQUF152X4aPJMUarw9T1L4DnQEAAA==
+x-device-utdid	abtToO7CtX8DAP2YUJu3pHSY
+uid	
+Platform	ANDROID
+AppId	ALIPUB059F038311550
+WorkspaceId	prod
+productVersion	1.8.5.241219194812
+productId	ALIPUB059F038311550_ANDROID
+Version	2
+Did	TEMP-abtToO7CtX8DAP2YUJu3pHSY
+Operation-Type	com.antgroup.antchain.mynftprod.service.item.card.queryFeeds
+Ts	Pq5dqCX
+Content-Type	application/json
+Sign	c59405ca16cce2c12df4091fdca98eaa
+signType	0
+x-app-sys-Id	com.antfans.fans
+Cookie	
+RpcId	2
+TRACEID	TEMP-abtToO7CtX8DAP2YUJu3pHSYPq5dqCX_2
+Retryable2	0
+Accept-Language	zh-Hans
+Accept-Encoding	gzip
+Connection	Keep-Alive
+Content-Length	28
+Host	mgs-normal.antfans.com
+User-Agent	Android_Ant_Client

@@ -33,3 +33,167 @@ Content-Type: application/json
 #     }
 #   ]
 # }
+
+
+### 原始响应样本: 07_plane_list_new.response.json
+# {
+#   "code" : 200,
+#   "msg" : "成功",
+#   "data" : [ {
+#     "id" : 4,
+#     "name" : "个创板块",
+#     "code" : "00000004",
+#     "img" : null,
+#     "description" : "个创板块",
+#     "status" : 1,
+#     "avgPrice" : -0.6100,
+#     "dealPrice" : 0.00,
+#     "dealCount" : 1502,
+#     "shelvesRate" : 1.3742,
+#     "totalMarketValue" : 753836311.15,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 1,
+#     "name" : "字画板块",
+#     "code" : "00000001",
+#     "img" : null,
+#     "description" : "字画板块",
+#     "status" : 1,
+#     "avgPrice" : -0.0700,
+#     "dealPrice" : 799.00,
+#     "dealCount" : 2494,
+#     "shelvesRate" : 3.4542,
+#     "totalMarketValue" : 646024537.49,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 2,
+#     "name" : "文物板块",
+#     "code" : "00000002",
+#     "img" : null,
+#     "description" : "文物板块",
+#     "status" : 1,
+#     "avgPrice" : -0.0600,
+#     "dealPrice" : 12852.01,
+#     "dealCount" : 2350,
+#     "shelvesRate" : 2.9817,
+#     "totalMarketValue" : 625499831.99,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 6,
+#     "name" : "官方板块",
+#     "code" : "00000006",
+#     "img" : null,
+#     "description" : "官方板块",
+#     "status" : 1,
+#     "avgPrice" : 0.0500,
+#     "dealPrice" : 3739.17,
+#     "dealCount" : 5311,
+#     "shelvesRate" : 0.9499,
+#     "totalMarketValue" : 409609953.11,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 10,
+#     "name" : "祈福板块",
+#     "code" : "0000000a",
+#     "img" : null,
+#     "description" : "祈福板块",
+#     "status" : 1,
+#     "avgPrice" : -1.5400,
+#     "dealPrice" : 6867.25,
+#     "dealCount" : 14767,
+#     "shelvesRate" : 0.6145,
+#     "totalMarketValue" : 328479441.72,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 11,
+#     "name" : "博域板块",
+#     "code" : "0000000b",
+#     "img" : null,
+#     "description" : "鲸探博域藏品",
+#     "status" : 1,
+#     "avgPrice" : -0.0700,
+#     "dealPrice" : 0.00,
+#     "dealCount" : 28,
+#     "shelvesRate" : 1.9510,
+#     "totalMarketValue" : 130720945.92,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 5,
+#     "name" : "场景板块",
+#     "code" : "00000005",
+#     "img" : null,
+#     "description" : "场景板块",
+#     "status" : 1,
+#     "avgPrice" : -0.1000,
+#     "dealPrice" : 60.00,
+#     "dealCount" : 33,
+#     "shelvesRate" : 0.8907,
+#     "totalMarketValue" : 80991172.81,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 8,
+#     "name" : "PFP板块",
+#     "code" : "00000008",
+#     "img" : null,
+#     "description" : "PFP板块",
+#     "status" : 1,
+#     "avgPrice" : -0.2000,
+#     "dealPrice" : 430.00,
+#     "dealCount" : 52,
+#     "shelvesRate" : 2.5024,
+#     "totalMarketValue" : 65006339.00,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 7,
+#     "name" : "品牌板块",
+#     "code" : "00000007",
+#     "img" : null,
+#     "description" : "品牌板块",
+#     "status" : 1,
+#     "avgPrice" : -0.5100,
+#     "dealPrice" : 0.00,
+#     "dealCount" : 16,
+#     "shelvesRate" : 1.5520,
+#     "totalMarketValue" : 62937369.10,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 9,
+#     "name" : "抽赏板块",
+#     "code" : "00000009",
+#     "img" : null,
+#     "description" : "抽赏板块",
+#     "status" : 1,
+#     "avgPrice" : 1.2100,
+#     "dealPrice" : 0.00,
+#     "dealCount" : 100,
+#     "shelvesRate" : 2.0804,
+#     "totalMarketValue" : 35743534.08,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   }, {
+#     "id" : 3,
+#     "name" : "非遗板块",
+#     "code" : "00000003",
+#     "img" : null,
+#     "description" : "非遗板块",
+#     "status" : 1,
+#     "avgPrice" : 0.2600,
+#     "dealPrice" : 992.68,
+#     "dealCount" : 72,
+#     "shelvesRate" : 1.5289,
+#     "totalMarketValue" : 27452668.60,
+#     "archiveNum" : null,
+#     "isFollow" : false
+#   } ]
+# }
+# 
+

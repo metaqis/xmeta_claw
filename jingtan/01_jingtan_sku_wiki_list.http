@@ -1,0 +1,426 @@
+# 接口名称: 鲸探 SKU 列表
+# 来源: https://mgs-normal.antfans.com/mgw.htm
+# 说明: 按分页查询藏品列表
+# 响应状态: 200 OK
+
+@baseUrl = https://mgs-normal.antfans.com
+
+### 获取 SKU 列表
+POST {{baseUrl}}/mgw.htm
+Content-Type: application/json
+Operation-Type: com.antgroup.antchain.mymobileprod.common.service.facade.scope.social.querySkuWiki
+x-source: fans
+lastclickspm: a2811.b35247.c361161.d442528
+x-universe-version: 26.3.1.1
+pagets: a2811.b48054__Pq5UsCK_
+x-universe-source: fans-main
+nbversion: 26.3.1.0
+x-user-agent: Mozilla/5.0 (Linux; Android 9; SM-G977N Build/LMY48Z; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/92.0.4515.131 Mobile Safari/537.36 NebulaSDK/1.8.100112 Nebula AntFans/Android AliApp(AP/10.2.70.00000024) mPaaSClient
+mtraceid: e25c2040-314f-4a69-88f6-71519b659f4d
+x-h5-version: 5.4
+x-platform: Android
+nbappid: 68687967
+srcspm:
+x-fans-version: 2.48.1
+x-68687967-version: 26.3.1.0
+x-device-token: <x-device-token>
+x-device-color: <x-device-color>
+x-device-model: SM-G9810
+x-fans-utdid: <x-fans-utdid>
+x-device-ap-token: <x-device-ap-token>
+x-device-utdid: abtToO7CtX8DAP2YUJu3pHSY
+uid:
+Platform: ANDROID
+AppId: ALIPUB059F038311550
+WorkspaceId: prod
+productVersion: 1.8.5.241219194812
+productId: ALIPUB059F038311550_ANDROID
+Version: 2
+Did: TEMP-abtToO7CtX8DAP2YUJu3pHSY
+Ts: Pq5V+7k
+Sign: <sign>
+signType: 0
+x-app-sys-Id: com.antfans.fans
+Cookie: <cookie>
+RpcId: 31
+TRACEID: TEMP-abtToO7CtX8DAP2YUJu3pHSYPq5V+7k_31
+Retryable2: 0
+Accept-Language: zh-Hans
+Host: mgs-normal.antfans.com
+User-Agent: Android_Ant_Client
+Accept: application/json
+Origin: https://mgs-normal.antfans.com
+Referer: https://mgs-normal.antfans.com/mgw.htm
+
+[{"pageNum":1,"pageSize":20}]
+
+### 原始响应样本
+# {
+#   "bizStatusCode": 10000,
+#   "bizStatusMessage": "",
+#   "currentPage": 1,
+#   "hasNext": true,
+#   "pageSize": 20,
+#   "skuWikiList": [
+#     {
+#       "author": "数字圆明园",
+#       "firstCategory": "JQ",
+#       "firstCategoryName": "景区",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/0aQRT7m9wMkAAAAAVfAAAAgAevN2AQBr/original",
+#       "owner": "北京市建筑设计研究院股份有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "GNJQ",
+#       "secondCategoryName": "国内景区",
+#       "skuId": "1120380",
+#       "skuIssueTime": 1772699874000,
+#       "skuName": "长春园铜麒麟",
+#       "skuProducer": "1322132573342701",
+#       "skuQuantity": 5000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "浙江省博物馆",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/saBkSL6GsQUAAAAATrAAAAgAevN2AQBr/original",
+#       "owner": "杭州芯影智元数字科技有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1122903",
+#       "skuIssueTime": 1773314592000,
+#       "skuName": "五代吴越·二王批牍合卷",
+#       "skuProducer": "1322032530789300",
+#       "skuQuantity": 8000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "西安博物院",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/rPaARbfWLjEAAAAAUWAAAAgAevN2AQBr/original",
+#       "owner": "三秦四季(陕西)文化产业有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1120774",
+#       "skuIssueTime": 1772793177000,
+#       "skuName": "《溪亭清晖图》轴",
+#       "skuProducer": "1322502674443944",
+#       "skuQuantity": 6000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "意大利艺术典藏",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/LmceS5RUbGQAAAAAVZAAAAgAevN2AQBr/original",
+#       "owner": "意大利艺术典藏",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "CTYS",
+#       "secondCategoryName": "传统艺术",
+#       "skuId": "1123137",
+#       "skuIssueTime": 1773396408000,
+#       "skuName": "《圣马可飞狮》",
+#       "skuProducer": "1322232538557435",
+#       "skuQuantity": 8000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "苏展",
+#       "firstCategory": "AYCSJ",
+#       "firstCategoryName": "原创设计",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/lKPyTbP9LvMAAAAAW2AAAAgAevN2AQBr/original",
+#       "owner": "苏展设计（杭州）有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "WS",
+#       "secondCategoryName": "玩设",
+#       "skuId": "1120717",
+#       "skuIssueTime": 1772783232000,
+#       "skuName": "KOOMAN·贤勇将军李信",
+#       "skuProducer": "1322112542451425",
+#       "skuQuantity": 8000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "雅昌艺术",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/nbcgTq2mw9EAAAAAUGAAAAgAevN2AQBr/original",
+#       "owner": "北京万相更新科技发展有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "HWYS",
+#       "secondCategoryName": "海外艺术",
+#       "skuId": "1122559",
+#       "skuIssueTime": 1773215991000,
+#       "skuName": "《马背上的戈黛娃夫人》",
+#       "skuProducer": "1322202147312695",
+#       "skuQuantity": 10000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "故宫观唐",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/MS18SoMUNv0AAAAAXTAAAAgAevN2AQBr/original",
+#       "owner": "雷鹿(杭州)文创有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1120742",
+#       "skuIssueTime": 1772788386000,
+#       "skuName": "钱选《孤山图》卷",
+#       "skuProducer": "1322822566836637",
+#       "skuQuantity": 6000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "西安博物院",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/S1BuTZls38cAAAAAT5AAAAgAevN2AQBr/original",
+#       "owner": "三秦四季(陕西)文化产业有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1120773",
+#       "skuIssueTime": 1772793168000,
+#       "skuName": "《高士抚琴图》",
+#       "skuProducer": "1322502674443944",
+#       "skuQuantity": 4000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "何海霞",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/5XJgSaIZCw4AAAAAXmAAAAgAevN2AQBr/original",
+#       "owner": "宽堂（北京）文化发展有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "XDYS",
+#       "secondCategoryName": "现代艺术",
+#       "skuId": "1117792",
+#       "skuIssueTime": 1772160624000,
+#       "skuName": "何海霞《晴峦暖翠》",
+#       "skuProducer": "1322222199226904",
+#       "skuQuantity": 4000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "艾尔米塔什博物馆",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/Q9K9Q6p6gFgAAAAAWjAAAAgAevN2AQBr/original",
+#       "owner": "杭州胡好网络科技有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "HWYS",
+#       "secondCategoryName": "海外艺术",
+#       "skuId": "1123019",
+#       "skuIssueTime": 1773369453000,
+#       "skuName": "《巴黎蒙马特大道》",
+#       "skuProducer": "1322232470414131",
+#       "skuQuantity": 4000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "马跃来财",
+#       "firstCategory": "ACG",
+#       "firstCategoryName": "ACG",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/RzXRQqYGdMMAAAAAWxAAAAgAevN2AQBr/original",
+#       "owner": "深圳市奇盛可达科技有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "STAGE_LIMIT_QUANTITY",
+#       "secondCategory": "MH",
+#       "secondCategoryName": "漫画",
+#       "skuId": "1120635",
+#       "skuIssueTime": 1773633903000,
+#       "skuName": "马跃来财",
+#       "skuProducer": "1322132511543294",
+#       "skuQuantity": 29434,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "青州博物馆",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/I1T_Rq3nlFwAAAAASnAAAAgAevN2AQBr/original",
+#       "owner": "东方一贤（北京）科技发展有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1122152",
+#       "skuIssueTime": 1773132354000,
+#       "skuName": "东汉“宜子孙”玉璧",
+#       "skuProducer": "1322132538825245",
+#       "skuQuantity": 10000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "故宫观唐",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/Cm68S7-kPLkAAAAAT1AAAAgAevN2AQBr/original",
+#       "owner": "雷鹿(杭州)文创有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1120743",
+#       "skuIssueTime": 1772788389000,
+#       "skuName": "钱选《西湖吟趣图》卷",
+#       "skuProducer": "1322822566836637",
+#       "skuQuantity": 6000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "广州艺术博物院",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/NsTpSai1R0kAAAAAW5AAAAgAevN2AQBr/original",
+#       "owner": "湖南显清文化发展有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "CTYS",
+#       "secondCategoryName": "传统艺术",
+#       "skuId": "1120421",
+#       "skuIssueTime": 1772704350000,
+#       "skuName": "晚来急雨添飞瀑图",
+#       "skuProducer": "1322132098810794",
+#       "skuQuantity": 8000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "数字圆明园",
+#       "firstCategory": "JQ",
+#       "firstCategoryName": "景区",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/U-vRQLumly8AAAAAVVAAAAgAevN2AQBr/original",
+#       "owner": "北京市建筑设计研究院股份有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "GNJQ",
+#       "secondCategoryName": "国内景区",
+#       "skuId": "1120381",
+#       "skuIssueTime": 1772699880000,
+#       "skuName": "铜胎珐琅云龙纹香筒",
+#       "skuProducer": "1322132573342701",
+#       "skuQuantity": 5000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "上海图书馆",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/XPusQ5hTRnMAAAAAXMAAAAgAevN2AQBr/original",
+#       "owner": "广州数金信息技术有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "CTYS",
+#       "secondCategoryName": "传统艺术",
+#       "skuId": "1122565",
+#       "skuIssueTime": 1773216060000,
+#       "skuName": "《进瓜记》",
+#       "skuProducer": "1322132596545286",
+#       "skuQuantity": 3000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "辽宁省博物馆",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/2ULjTqFLZssAAAAAXKAAAAgAevN2AQBr/original",
+#       "owner": "北京启航源科技有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1119594",
+#       "skuIssueTime": 1772530458000,
+#       "skuName": "赵孟頫《行书归去来兮辞》卷",
+#       "skuProducer": "1322722666115590",
+#       "skuQuantity": 4000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "艾尔米塔什博物馆",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/3A3dTaw0jo4AAAAAWnAAAAgAevN2AQBr/original",
+#       "owner": "杭州胡好网络科技有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "HWYS",
+#       "secondCategoryName": "海外艺术",
+#       "skuId": "1123018",
+#       "skuIssueTime": 1773369450000,
+#       "skuName": "《圣母与圣子》（利塔圣母）",
+#       "skuProducer": "1322232470414131",
+#       "skuQuantity": 8000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "何海霞",
+#       "firstCategory": "YS",
+#       "firstCategoryName": "艺术",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/ajQzR722ODUAAAAAXVAAAAgAevN2AQBr/original",
+#       "owner": "宽堂（北京）文化发展有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "XDYS",
+#       "secondCategoryName": "现代艺术",
+#       "skuId": "1117793",
+#       "skuIssueTime": 1772160633000,
+#       "skuName": "何海霞《人在画图中》",
+#       "skuProducer": "1322222199226904",
+#       "skuQuantity": 3000,
+#       "skuType": "THREE_DIMENSIONS"
+#     },
+#     {
+#       "author": "辽宁省博物馆",
+#       "firstCategory": "WH",
+#       "firstCategoryName": "文化",
+#       "miniFileUrl": "https://mdn.alipayobjects.com/chain_myent/afts/img/3i5-QIFxqSsAAAAAX0AAAAgAevN2AQBr/original",
+#       "owner": "北京启航源科技有限公司",
+#       "partner": "JINGTAN",
+#       "partnerName": "鲸探",
+#       "quantityType": "LIMIT_QUANTITY",
+#       "secondCategory": "BWG",
+#       "secondCategoryName": "博物馆",
+#       "skuId": "1119593",
+#       "skuIssueTime": 1772530464000,
+#       "skuName": "张即之《行楷书杜诗》卷",
+#       "skuProducer": "1322722666115590",
+#       "skuQuantity": 8000,
+#       "skuType": "THREE_DIMENSIONS"
+#     }
+#   ]
+# }

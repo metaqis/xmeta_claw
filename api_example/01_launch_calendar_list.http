@@ -37,3 +37,27 @@ Content-Type: application/json
 #     }
 #   ]
 # }
+
+
+### 原始响应样本: 01_launch_calendar_list.response.json
+# {
+#   "code" : 200,
+#   "msg" : "成功",
+#   "data" : [ {
+#     "id" : 4692,
+#     "archiveId" : null,
+#     "name" : "疏影恒春\u2022墨韵千载",
+#     "sellTime" : "2026-03-13 12:00:00",
+#     "amount" : 60.0,
+#     "count" : 12000,
+#     "priorityPurchaseNum" : 11400,
+#     "isPriorityPurchase" : true,
+#     "platformId" : 741,
+#     "platformName" : "鲸探",
+#     "platformImg" : "...",
+#     "ipName" : "故宫观唐",
+#     "ipAvatar" : "..."
+#   } ]
+# }
+# 
+
