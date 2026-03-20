@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Drawer, Grid, Image, Input, List, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Divider, Drawer, Grid, Image, Input, List, Space, Table, Tag, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { jingtanSkuWikiApi, JingtanSkuWikiItem } from '../../api/jingtanSkuWiki'
 import { tasksApi } from '../../api/tasks'
@@ -8,6 +8,26 @@ import { useAuthStore } from '../../store/auth'
 
 const { Text } = Typography
 const { useBreakpoint } = Grid
+
+function prettyJson(raw?: string | null) {
+  if (!raw) return ''
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
+function parseImageList(raw?: string | null) {
+  if (!raw) return []
+  try {
+    const list = JSON.parse(raw)
+    if (!Array.isArray(list)) return []
+    return list.filter((x) => typeof x === 'string')
+  } catch {
+    return []
+  }
+}
 
 export default function JingtanSkuWikiPage() {
   const screens = useBreakpoint()
@@ -20,7 +40,8 @@ export default function JingtanSkuWikiPage() {
   const [search, setSearch] = useState<string | undefined>(undefined)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
-  const [runLoading, setRunLoading] = useState(false)
+  const [runWikiLoading, setRunWikiLoading] = useState(false)
+  const [runDetailLoading, setRunDetailLoading] = useState(false)
 
   const params = useMemo(
     () => ({ page, page_size: pageSize, search }),
@@ -92,20 +113,37 @@ export default function JingtanSkuWikiPage() {
             <Button
               type="primary"
               disabled={!isAdmin}
-              loading={runLoading}
+              loading={runWikiLoading}
               onClick={async () => {
-                setRunLoading(true)
+                setRunWikiLoading(true)
                 try {
                   const res = await tasksApi.run('crawl_jingtan_sku_wiki')
                   message.success(`已触发爬取，run_id=${res.run_id}，可到任务管理查看日志`)
                 } catch (e: any) {
                   message.error(e?.response?.data?.detail || '触发失败')
                 } finally {
-                  setRunLoading(false)
+                  setRunWikiLoading(false)
                 }
               }}
             >
-              爬取更新
+              爬取库
+            </Button>
+            <Button
+              disabled={!isAdmin}
+              loading={runDetailLoading}
+              onClick={async () => {
+                setRunDetailLoading(true)
+                try {
+                  const res = await tasksApi.run('crawl_jingtan_sku_details')
+                  message.success(`已触发详情抓取，run_id=${res.run_id}，可到任务管理查看日志`)
+                } catch (e: any) {
+                  message.error(e?.response?.data?.detail || '触发失败')
+                } finally {
+                  setRunDetailLoading(false)
+                }
+              }}
+            >
+              爬取详情
             </Button>
           </Space>
         </Space>
@@ -188,9 +226,14 @@ export default function JingtanSkuWikiPage() {
         {detailFetching ? <Text>加载中...</Text> : null}
         {detail ? (
           <div>
-            {detail.mini_file_url ? (
+            {(detail.homepage_detail?.mini_file_url || detail.mini_file_url) ? (
               <div style={{ marginBottom: 12 }}>
-                <Image src={detail.mini_file_url} width={120} height={120} style={{ borderRadius: 8, objectFit: 'cover' }} />
+                <Image
+                  src={detail.homepage_detail?.mini_file_url || detail.mini_file_url || ''}
+                  width={120}
+                  height={120}
+                  style={{ borderRadius: 8, objectFit: 'cover' }}
+                />
               </div>
             ) : null}
             <div style={{ marginBottom: 8 }}><Text type="secondary">作者：</Text>{detail.author ?? '-'}</div>
@@ -198,10 +241,55 @@ export default function JingtanSkuWikiPage() {
             <div style={{ marginBottom: 8 }}><Text type="secondary">分类：</Text>{(detail.first_category_name ?? detail.first_category ?? '-') + ' / ' + (detail.second_category_name ?? detail.second_category ?? '-')}</div>
             <div style={{ marginBottom: 8 }}><Text type="secondary">数量：</Text>{detail.sku_quantity ?? '-'}</div>
             <div style={{ marginBottom: 12 }}><Text type="secondary">发行时间：</Text>{detail.sku_issue_time_ms ? dayjs(detail.sku_issue_time_ms).format('YYYY-MM-DD HH:mm:ss') : '-'}</div>
+            <Divider style={{ margin: '12px 0' }} />
+            {detail.homepage_detail ? (
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>详情页数据</div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text type="secondary">收藏数：</Text>{detail.homepage_detail.collect_num ?? '-'}
+                  <Text type="secondary" style={{ marginLeft: 16 }}>评论数：</Text>{detail.homepage_detail.comment_num ?? '-'}
+                  <Text type="secondary" style={{ marginLeft: 16 }}>动态数：</Text>{detail.homepage_detail.mini_feed_num ?? '-'}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text type="secondary">发行方：</Text>{detail.homepage_detail.producer_name ?? '-'}
+                  <Text type="secondary" style={{ marginLeft: 16 }}>认证：</Text>{detail.homepage_detail.certification_name ?? '-'}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text type="secondary">背景图：</Text>
+                  {detail.homepage_detail.bg_info ? <a href={detail.homepage_detail.bg_info} target="_blank" rel="noreferrer">查看</a> : '-'}
+                  <Text type="secondary" style={{ marginLeft: 16 }}>原始资源：</Text>
+                  {detail.homepage_detail.origin_file_url ? <a href={detail.homepage_detail.origin_file_url} target="_blank" rel="noreferrer">查看</a> : '-'}
+                </div>
+                {detail.homepage_detail.sku_desc ? (
+                  <div style={{ marginBottom: 10 }}>
+                    <Text type="secondary">藏品介绍：</Text>
+                    <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>{detail.homepage_detail.sku_desc}</div>
+                  </div>
+                ) : null}
+                {parseImageList(detail.homepage_detail.sku_desc_image_file_ids).length > 0 ? (
+                  <div style={{ marginBottom: 10 }}>
+                    <Text type="secondary">介绍图片：</Text>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                      {parseImageList(detail.homepage_detail.sku_desc_image_file_ids).map((url) => (
+                        <Image key={url} src={url} width={88} height={88} style={{ borderRadius: 8, objectFit: 'cover' }} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>详情原始 JSON</div>
+                  <pre style={{ background: '#fafafa', padding: 12, borderRadius: 8, overflow: 'auto' }}>
+                    {prettyJson(detail.homepage_detail.raw_json)}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <Tag color="warning">该藏品暂无详情抓取数据，请先运行“爬取详情”任务</Tag>
+            )}
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>原始 JSON</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>藏品库原始 JSON</div>
               <pre style={{ background: '#fafafa', padding: 12, borderRadius: 8, overflow: 'auto' }}>
-                {detail.raw_json ? JSON.stringify(JSON.parse(detail.raw_json), null, 2) : ''}
+                {prettyJson(detail.raw_json)}
               </pre>
             </div>
           </div>

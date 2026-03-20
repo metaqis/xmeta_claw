@@ -9,7 +9,7 @@ from app.api.auth import get_current_user, require_admin
 from app.core.config import get_settings
 from app.crawler.antfans_client import antfans_client
 from app.database.db import get_db
-from app.database.models import JingtanSkuWiki
+from app.database.models import JingtanSkuHomepageDetail, JingtanSkuWiki
 from sqlalchemy.ext.asyncio import AsyncSession
 
 settings = get_settings()
@@ -70,8 +70,51 @@ class JingtanSkuWikiListResponse(BaseModel):
     items: list[JingtanSkuWikiItem]
 
 
+class JingtanSkuHomepageDetailItem(BaseModel):
+    sku_id: str
+    sku_name: str
+    author: Optional[str] = None
+    owner: Optional[str] = None
+    partner: Optional[str] = None
+    partner_name: Optional[str] = None
+    biz_type: Optional[str] = None
+    bg_conf: Optional[str] = None
+    bg_info: Optional[str] = None
+    has_item: Optional[bool] = None
+    mini_file_url: Optional[str] = None
+    origin_file_url: Optional[str] = None
+    quantity_type: Optional[str] = None
+    sku_desc: Optional[str] = None
+    sku_desc_image_file_ids: Optional[str] = None
+    sku_issue_time_ms: Optional[int] = None
+    sku_producer: Optional[str] = None
+    sku_quantity: Optional[int] = None
+    sku_type: Optional[str] = None
+    collect_num: Optional[int] = None
+    user_collect_status: Optional[bool] = None
+    comment_num: Optional[int] = None
+    mini_feed_num: Optional[int] = None
+    show_comment_list: Optional[bool] = None
+    show_mini_feed_list: Optional[bool] = None
+    producer_fans_uid: Optional[str] = None
+    producer_name: Optional[str] = None
+    producer_avatar: Optional[str] = None
+    producer_avatar_type: Optional[str] = None
+    certification_name: Optional[str] = None
+    certification_type: Optional[str] = None
+    follow_status: Optional[str] = None
+    produce_amount: Optional[int] = None
+    raw_json: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class JingtanSkuWikiDetailResponse(JingtanSkuWikiItem):
     raw_json: Optional[str] = None
+    homepage_detail: Optional[JingtanSkuHomepageDetailItem] = None
 
 
 @router.get("/sku-wikis", response_model=JingtanSkuWikiListResponse)
@@ -128,7 +171,12 @@ async def get_sku_wiki_detail(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="未找到该藏品")
+    detail_result = await db.execute(select(JingtanSkuHomepageDetail).where(JingtanSkuHomepageDetail.sku_id == sku_id))
+    homepage_detail = detail_result.scalar_one_or_none()
     return JingtanSkuWikiDetailResponse(
         **JingtanSkuWikiItem.model_validate(item).model_dump(),
         raw_json=item.raw_json,
+        homepage_detail=(
+            JingtanSkuHomepageDetailItem.model_validate(homepage_detail) if homepage_detail else None
+        ),
     )

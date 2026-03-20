@@ -15,6 +15,7 @@ from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar
 from app.crawler.calendar_crawler import crawl_calendar_for_date, crawl_calendar_range, crawl_calendar_backward_until_no_data
 from app.crawler.ip_uid_backfill import backfill_ip_source_uid
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
+from app.crawler.jingtan_sku_homepage_detail_crawler import crawl_jingtan_sku_homepage_details
 from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
@@ -167,6 +168,28 @@ async def task_crawl_jingtan_sku_wiki(db, run_id: int):
     await _log_run(db, run_id, "info", f"爬取完成: 拉取 {fetched} 入库 {upserted}")
 
 
+async def task_crawl_jingtan_sku_details(db, run_id: int):
+    logger.info("定时任务: 鲸探藏品详情")
+    await _log_run(db, run_id, "info", "开始爬取鲸探藏品详情")
+
+    async def _on_progress(processed: int, upserted: int, failed: int, total: int):
+        if processed % 20 == 0 or processed == total:
+            await _log_run(
+                db,
+                run_id,
+                "info",
+                f"sku detail 进度: {processed}/{total} 入库 {upserted} 失败 {failed}",
+            )
+
+    processed, upserted, failed = await crawl_jingtan_sku_homepage_details(db, on_progress=_on_progress)
+    await _log_run(
+        db,
+        run_id,
+        "info",
+        f"爬取完成: 处理 {processed} 入库 {upserted} 失败 {failed}",
+    )
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
         "name": "今日日历",
@@ -235,6 +258,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_crawl_jingtan_sku_wiki,
+    },
+    "crawl_jingtan_sku_details": {
+        "name": "鲸探藏品详情",
+        "description": "遍历藏品库并抓取详情入库保存",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_crawl_jingtan_sku_details,
     },
 }
 

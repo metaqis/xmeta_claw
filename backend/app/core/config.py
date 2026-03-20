@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ANTFANS_OPERATION_TYPE_QUERY_SKU_WIKI: str = (
         "com.antgroup.antchain.mymobileprod.common.service.facade.scope.social.querySkuWiki"
     )
+    ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE: str = (
+        "com.antgroup.antchain.mymobileprod.common.service.facade.scope.social.querySKUHomepage"
+    )
     ANTFANS_SIGN_SECRET: str = ""
     ANTFANS_SIGN_TYPE: str = "0"
     ANTFANS_DID: str = "TEMP-abtToO7CtX8DAP2YUJu3pHSY"

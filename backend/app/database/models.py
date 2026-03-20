@@ -130,6 +130,47 @@ class JingtanSkuWiki(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class JingtanSkuHomepageDetail(Base):
+    __tablename__ = "jingtan_sku_homepage_details"
+
+    sku_id = Column(String(50), primary_key=True)
+    sku_name = Column(String(300), nullable=False, index=True)
+    author = Column(String(200))
+    owner = Column(String(300))
+    partner = Column(String(50))
+    partner_name = Column(String(100))
+    biz_type = Column(String(50))
+    bg_conf = Column(String(50))
+    bg_info = Column(String(500))
+    has_item = Column(Boolean)
+    mini_file_url = Column(String(500))
+    origin_file_url = Column(String(500))
+    quantity_type = Column(String(50))
+    sku_desc = Column(Text)
+    sku_desc_image_file_ids = Column(Text)
+    sku_issue_time_ms = Column(BigInteger, index=True)
+    sku_producer = Column(String(50))
+    sku_quantity = Column(Integer)
+    sku_type = Column(String(50))
+    collect_num = Column(Integer)
+    user_collect_status = Column(Boolean)
+    comment_num = Column(Integer)
+    mini_feed_num = Column(Integer)
+    show_comment_list = Column(Boolean)
+    show_mini_feed_list = Column(Boolean)
+    producer_fans_uid = Column(String(50))
+    producer_name = Column(String(200))
+    producer_avatar = Column(String(500))
+    producer_avatar_type = Column(String(50))
+    certification_name = Column(String(100))
+    certification_type = Column(String(50))
+    follow_status = Column(String(50))
+    produce_amount = Column(Integer)
+    raw_json = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Plane(Base):
     __tablename__ = "planes"
 
