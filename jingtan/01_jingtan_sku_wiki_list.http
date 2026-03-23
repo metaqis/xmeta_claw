@@ -5,7 +5,7 @@
 
 @baseUrl = https://mgs-normal.antfans.com
 
-### 获取 SKU 列表
+### 获取 SKU 列表(分类+分页)
 POST {{baseUrl}}/mgw.htm
 Content-Type: application/json
 Operation-Type: com.antgroup.antchain.mymobileprod.common.service.facade.scope.social.querySkuWiki
@@ -52,7 +52,9 @@ Accept: application/json
 Origin: https://mgs-normal.antfans.com
 Referer: https://mgs-normal.antfans.com/mgw.htm
 
-[{"pageNum":1,"pageSize":20}]
+# firstCategory 支持:
+# ["WH","YL","YS","CW","TY","PP","KJ","ACG","JQ","AFY","AYX","AYCSJ","QT"]
+[{"pageNum":1,"pageSize":20,"firstCategory":"WH"}]
 
 @backendUrl = http://localhost:8000
 @token = <token>
@@ -71,7 +73,7 @@ POST {{backendUrl}}/jingtan/sku-wiki-list
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
-[{"pageNum":1,"pageSize":20}]
+[{"pageNum":1,"pageSize":20,"firstCategory":"WH"}]
 
 ### 触发后端入库爬虫(鲸探藏品库 sku wiki)
 POST {{backendUrl}}/crawler/jingtan/sku-wiki
