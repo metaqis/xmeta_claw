@@ -109,10 +109,7 @@ async def get_archives(
     if search:
         query = query.where(Archive.archive_name.ilike(f"%{search}%"))
         count_query = count_query.where(Archive.archive_name.ilike(f"%{search}%"))
-    if sort_by == "time_asc":
-        query = query.order_by(Archive.issue_time.asc().nullslast())
-    else:
-        query = query.order_by(Archive.issue_time.desc().nullslast())
+    query = query.order_by(Archive.archive_id.desc())
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Divider, Drawer, Grid, Image, Input, List, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Divider, Drawer, Grid, Image, Input, List, Select, Space, Table, Tag, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { jingtanSkuWikiApi, JingtanSkuWikiItem } from '../../api/jingtanSkuWiki'
 import { tasksApi } from '../../api/tasks'
@@ -8,6 +8,21 @@ import { useAuthStore } from '../../store/auth'
 
 const { Text } = Typography
 const { useBreakpoint } = Grid
+const FIRST_CATEGORY_OPTIONS = [
+  { label: '文化(WH)', value: 'WH' },
+  { label: '娱乐(YL)', value: 'YL' },
+  { label: '艺术(YS)', value: 'YS' },
+  { label: '潮玩(CW)', value: 'CW' },
+  { label: '体育(TY)', value: 'TY' },
+  { label: '品牌(PP)', value: 'PP' },
+  { label: '科技(KJ)', value: 'KJ' },
+  { label: 'ACG(ACG)', value: 'ACG' },
+  { label: '景区(JQ)', value: 'JQ' },
+  { label: '非遗(AFY)', value: 'AFY' },
+  { label: '游戏(AYX)', value: 'AYX' },
+  { label: '原创设计(AYCSJ)', value: 'AYCSJ' },
+  { label: '其他(QT)', value: 'QT' },
+]
 
 function prettyJson(raw?: string | null) {
   if (!raw) return ''
@@ -38,14 +53,15 @@ export default function JingtanSkuWikiPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState<string | undefined>(undefined)
+  const [firstCategory, setFirstCategory] = useState<string | undefined>(undefined)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [runWikiLoading, setRunWikiLoading] = useState(false)
   const [runDetailLoading, setRunDetailLoading] = useState(false)
 
   const params = useMemo(
-    () => ({ page, page_size: pageSize, search }),
-    [page, pageSize, search],
+    () => ({ page, page_size: pageSize, search, first_category: firstCategory }),
+    [page, pageSize, search, firstCategory],
   )
 
   const { data, isFetching, refetch } = useQuery({
@@ -99,15 +115,28 @@ export default function JingtanSkuWikiPage() {
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Input.Search
-            placeholder="搜索 skuId/名称/作者/机构"
-            allowClear
-            style={{ width: isMobile ? '100%' : 360 }}
-            onSearch={(v) => {
-              setSearch(v || undefined)
-              setPage(1)
-            }}
-          />
+          <Space wrap style={{ width: isMobile ? '100%' : 'auto' }}>
+            <Select
+              allowClear
+              placeholder="一级分类"
+              style={{ width: isMobile ? '100%' : 180 }}
+              options={FIRST_CATEGORY_OPTIONS}
+              value={firstCategory}
+              onChange={(v) => {
+                setFirstCategory(v || undefined)
+                setPage(1)
+              }}
+            />
+            <Input.Search
+              placeholder="搜索 skuId/名称/作者/机构"
+              allowClear
+              style={{ width: isMobile ? '100%' : 360 }}
+              onSearch={(v) => {
+                setSearch(v || undefined)
+                setPage(1)
+              }}
+            />
+          </Space>
           <Space>
             <Button loading={isFetching} onClick={() => refetch()}>刷新</Button>
             <Button
