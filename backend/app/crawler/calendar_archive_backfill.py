@@ -158,6 +158,7 @@ async def _upsert_archive_from_detail(
     db: AsyncSession,
     detail: dict,
     ref: dict,
+    force_update: bool = False,
 ):
     archive_id = str(detail.get("archiveId") or ref.get("archive_id") or "")
     if not archive_id:
@@ -212,17 +213,39 @@ async def _upsert_archive_from_detail(
     existing = result.scalar_one_or_none()
     if existing:
         existing.archive_name = detail.get("archiveName") or existing.archive_name
-        existing.platform_id = existing.platform_id or platform.id
-        if ip_obj and existing.ip_id is None:
+        if force_update and platform and platform.id is not None:
+            existing.platform_id = platform.id
+        else:
+            existing.platform_id = existing.platform_id or platform.id
+        if ip_obj and (force_update or existing.ip_id is None):
             existing.ip_id = ip_obj.id
-        existing.issue_time = existing.issue_time or issue_time
-        existing.archive_description = detail.get("archiveDescription") or existing.archive_description
-        existing.archive_type = archive_type_value or existing.archive_type
-        if existing.total_goods_count is None and total_goods_count_value is not None:
+        if force_update:
+            if issue_time is not None:
+                existing.issue_time = issue_time
+        else:
+            existing.issue_time = existing.issue_time or issue_time
+        if force_update:
+            if detail.get("archiveDescription") is not None:
+                existing.archive_description = detail.get("archiveDescription")
+        else:
+            existing.archive_description = detail.get("archiveDescription") or existing.archive_description
+        if force_update:
+            if archive_type_value:
+                existing.archive_type = archive_type_value
+        else:
+            existing.archive_type = archive_type_value or existing.archive_type
+        if force_update:
+            if total_goods_count_value is not None:
+                existing.total_goods_count = total_goods_count_value
+        elif existing.total_goods_count is None and total_goods_count_value is not None:
             existing.total_goods_count = total_goods_count_value
         existing.is_open_auction = bool(detail.get("isOpenAuction")) if detail.get("isOpenAuction") is not None else existing.is_open_auction
         existing.is_open_want_buy = bool(detail.get("isOpenWantBuy")) if detail.get("isOpenWantBuy") is not None else existing.is_open_want_buy
-        existing.img = img or existing.img
+        if force_update:
+            if img:
+                existing.img = img
+        else:
+            existing.img = img or existing.img
         return
 
     archive = Archive(

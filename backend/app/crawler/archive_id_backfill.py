@@ -53,11 +53,17 @@ async def _fetch_and_upsert(
     db: AsyncSession,
     aid: str,
     platform_id: int,
+    force_update: bool = False,
 ) -> Optional[bool]:
     """拉取单个藏品详情并入库，返回 True=新增, False=API无数据, None=出错"""
     detail = await _fetch_archive_detail(aid, platform_id)
     if detail:
-        await _upsert_archive_from_detail(db, detail, {"archive_id": aid, "platform_id": platform_id})
+        await _upsert_archive_from_detail(
+            db,
+            detail,
+            {"archive_id": aid, "platform_id": platform_id},
+            force_update=force_update,
+        )
         return True
     return False
 
@@ -65,7 +71,7 @@ async def _fetch_and_upsert(
 async def backfill_archives_by_id_desc(
     db: AsyncSession,
     start_id: int,
-    stop_id: int = 15000,
+    stop_id: int = 10000,
     platform_id: int = 741,
     on_progress: Callable[[int, int, int, int, int], Awaitable[None]] | None = None,
     on_error: Callable[[str, str], Awaitable[None]] | None = None,
@@ -134,3 +140,52 @@ async def backfill_archives_by_id_desc(
     await db.commit()
     logger.info(f"藏品ID补齐完成: 扫描 {scanned}，新增 {created}，跳过 {skipped}，失败 {errors}")
     return scanned, created
+
+
+async def refresh_archives_around_max_id(
+    db: AsyncSession,
+    around_count: int = 100,
+    platform_id: int = 741,
+    on_progress: Callable[[int, int, int, int], Awaitable[None]] | None = None,
+    on_error: Callable[[str, str], Awaitable[None]] | None = None,
+) -> Tuple[int, int, int]:
+    # max_id = await get_max_numeric_archive_id(db)
+    max_id = 15000
+    if max_id is None:
+        return 0, 0, 0
+
+    radius = max(0, int(around_count))
+    start_id = max(max_id - radius, 0)
+    end_id = max_id + radius
+    id_list = [str(aid) for aid in range(end_id, start_id - 1, -1)]
+    total = len(id_list)
+    scanned = 0
+    updated = 0
+    failed = 0
+
+    if on_progress is not None:
+        await on_progress(scanned, updated, failed, total)
+
+    for aid in id_list:
+        scanned += 1
+        try:
+            result = await _fetch_and_upsert(db, aid, platform_id, force_update=True)
+        except Exception as e:
+            failed += 1
+            err_msg = f"藏品 {aid} 刷新异常: {e}"
+            logger.warning(err_msg)
+            if on_error is not None:
+                await on_error(aid, str(e))
+        else:
+            if result is True:
+                updated += 1
+        if scanned % 20 == 0:
+            await db.commit()
+        if on_progress is not None and (scanned % 10 == 0 or scanned == total):
+            await on_progress(scanned, updated, failed, total)
+
+    await db.commit()
+    logger.info(
+        f"藏品ID邻域刷新完成: max_id={max_id} 范围[{start_id},{end_id}] 扫描 {scanned} 更新 {updated} 失败 {failed}"
+    )
+    return scanned, updated, failed

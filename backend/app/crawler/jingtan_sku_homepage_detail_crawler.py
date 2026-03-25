@@ -61,6 +61,15 @@ def _throttle_delay(base: float) -> float:
     return max(0.8, safe_base + safe_base * random.uniform(-0.2, 0.2))
 
 
+def _extract_resp_error(resp: dict, data: Optional[dict]) -> str:
+    status = resp.get("status")
+    if not isinstance(data, dict):
+        return f"HTTP={status}, 响应体非JSON对象"
+    code = data.get("bizStatusCode")
+    msg = _as_str(data.get("bizStatusMessage")) or ""
+    return f"HTTP={status}, bizStatusCode={code}, bizStatusMessage={msg}"
+
+
 async def _guess_wiki_categories(
     db: AsyncSession,
     author: Optional[str],
@@ -268,6 +277,7 @@ async def crawl_jingtan_sku_homepage_details(
     only_missing: bool = False,
     commit_every: int = 20,
     on_progress: Optional[Callable[[int, int, int, int], Awaitable[None]]] = None,
+    on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
 ) -> Tuple[int, int, int]:
     op = settings.ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE
     rows = await db.execute(select(JingtanSkuWiki.sku_id).order_by(JingtanSkuWiki.sku_id.asc()))
@@ -291,32 +301,68 @@ async def crawl_jingtan_sku_homepage_details(
                 continue
 
         payload = [{"source": "collectionPreview", "targetSkuId": sku_id}]
-        resp = await antfans_client.post_mgw_safe(operation_type=op, payload_obj=payload)
+        try:
+            resp = await antfans_client.post_mgw_safe(operation_type=op, payload_obj=payload)
+        except Exception as e:
+            failed += 1
+            err_msg = f"sku_id={sku_id} 请求异常: {e}"
+            logger.warning(err_msg)
+            if on_error:
+                await on_error(sku_id, str(e))
+            if on_progress:
+                await on_progress(processed, upserted, failed, total)
+            continue
         data = resp.get("json")
         if resp.get("status") != 200 or not isinstance(data, dict):
             failed += 1
+            err_msg = _extract_resp_error(resp, data if isinstance(data, dict) else None)
+            logger.warning(f"sku_id={sku_id} 请求失败: {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
             if on_progress:
                 await on_progress(processed, upserted, failed, total)
             continue
 
         if data.get("bizStatusCode") != 10000:
             failed += 1
+            err_msg = _extract_resp_error(resp, data)
+            logger.warning(f"sku_id={sku_id} 业务失败: {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
             if on_progress:
                 await on_progress(processed, upserted, failed, total)
             continue
 
         if not isinstance(data.get("skuHomepageModel"), dict):
             failed += 1
+            err_msg = "skuHomepageModel 缺失或类型异常"
+            logger.warning(f"sku_id={sku_id} 数据失败: {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
             if on_progress:
                 await on_progress(processed, upserted, failed, total)
             continue
 
         now = datetime.utcnow()
-        success = await _upsert_sku_homepage_and_wiki(db=db, sku_id=sku_id, data=data, now=now)
+        try:
+            success = await _upsert_sku_homepage_and_wiki(db=db, sku_id=sku_id, data=data, now=now)
+        except Exception as e:
+            failed += 1
+            err_msg = f"入库异常: {e}"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+            if on_progress:
+                await on_progress(processed, upserted, failed, total)
+            continue
         if success:
             upserted += 1
         else:
             failed += 1
+            err_msg = "入库失败: 详情结构不完整"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
         if processed % max(1, commit_every) == 0:
             await db.commit()
         if on_progress:
@@ -337,6 +383,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     commit_every: int = 20,
     request_interval_seconds: Optional[float] = None,
     on_progress: Optional[Callable[[int, int, int, int, int], Awaitable[None]]] = None,
+    on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
 ) -> Tuple[int, int, int, int]:
     op = settings.ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE
     start = start_sku_id if start_sku_id is not None else await _get_max_numeric_sku_id(db)
@@ -368,22 +415,52 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
             continue
 
         payload = [{"source": "collectionPreview", "targetSkuId": sku_id}]
-        resp = await antfans_client.post_mgw_safe(operation_type=op, payload_obj=payload)
+        try:
+            resp = await antfans_client.post_mgw_safe(operation_type=op, payload_obj=payload)
+        except Exception as e:
+            failed += 1
+            err_msg = f"请求异常: {e}"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, current)
+            current -= 1
+            continue
         await asyncio.sleep(_throttle_delay(base_interval))
         data = resp.get("json")
         if resp.get("status") != 200 or not isinstance(data, dict) or data.get("bizStatusCode") != 10000:
             failed += 1
+            err_msg = _extract_resp_error(resp, data if isinstance(data, dict) else None)
+            logger.warning(f"sku_id={sku_id} 回填失败: {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
             if on_progress:
                 await on_progress(scanned, inserted, skipped, failed, current)
             current -= 1
             continue
 
         now = datetime.utcnow()
-        success = await _upsert_sku_homepage_and_wiki(db=db, sku_id=sku_id, data=data, now=now)
+        try:
+            success = await _upsert_sku_homepage_and_wiki(db=db, sku_id=sku_id, data=data, now=now)
+        except Exception as e:
+            failed += 1
+            err_msg = f"入库异常: {e}"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, current)
+            current -= 1
+            continue
         if success:
             inserted += 1
         else:
             failed += 1
+            err_msg = "入库失败: 详情结构不完整"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
 
         if scanned % max(1, commit_every) == 0:
             await db.commit()

@@ -10,7 +10,11 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.crawler.archive_crawler import crawl_archives
-from app.crawler.archive_id_backfill import backfill_archives_by_id_desc, get_max_numeric_archive_id
+from app.crawler.archive_id_backfill import (
+    backfill_archives_by_id_desc,
+    get_max_numeric_archive_id,
+    refresh_archives_around_max_id,
+)
 from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar_range
 from app.crawler.calendar_crawler import crawl_calendar_for_date, crawl_calendar_range, crawl_calendar_backward_until_no_data
 from app.crawler.ip_uid_backfill import backfill_ip_source_uid
@@ -144,6 +148,35 @@ async def task_archive_id_backfill(db, run_id: int):
     await _log_run(db, run_id, "info", f"藏品ID补齐完成: 扫描 {scanned} 新增 {created}")
 
 
+async def task_archive_id_refresh_near_max(db, run_id: int):
+    max_id = await get_max_numeric_archive_id(db)
+    if max_id is None:
+        await _log_run(db, run_id, "info", "无可用藏品ID，跳过")
+        return
+    await _log_run(db, run_id, "info", f"开始藏品ID邻域刷新: 围绕 {max_id} 前后各100")
+
+    async def _on_progress(scanned: int, updated: int, failed: int, total: int):
+        if scanned % 20 == 0 or scanned == total:
+            await _log_run(
+                db,
+                run_id,
+                "info",
+                f"邻域刷新进度: 扫描 {scanned}/{total} 更新 {updated} 失败 {failed}",
+            )
+
+    async def _on_error(archive_id: str, error_msg: str):
+        await _log_run(db, run_id, "error", f"藏品 {archive_id} 刷新失败: {error_msg}")
+
+    scanned, updated, failed = await refresh_archives_around_max_id(
+        db,
+        around_count=100,
+        platform_id=741,
+        on_progress=_on_progress,
+        on_error=_on_error,
+    )
+    await _log_run(db, run_id, "info", f"邻域刷新完成: 扫描 {scanned} 更新 {updated} 失败 {failed}")
+
+
 async def task_ip_uid_backfill(db, run_id: int):
     await _log_run(db, run_id, "info", "开始补齐 IP source_uid")
 
@@ -184,7 +217,14 @@ async def task_crawl_jingtan_sku_details(db, run_id: int):
                 f"sku detail 进度: {processed}/{total} 入库 {upserted} 失败 {failed}",
             )
 
-    processed, upserted, failed = await crawl_jingtan_sku_homepage_details(db, on_progress=_on_progress)
+    async def _on_error(sku_id: str, error_msg: str):
+        await _log_run(db, run_id, "error", f"sku detail 失败: sku_id={sku_id} {error_msg}")
+
+    processed, upserted, failed = await crawl_jingtan_sku_homepage_details(
+        db,
+        on_progress=_on_progress,
+        on_error=_on_error,
+    )
     await _log_run(
         db,
         run_id,
@@ -206,9 +246,13 @@ async def task_crawl_jingtan_sku_details_desc_backfill(db, run_id: int):
                 f"sku detail backfill: 扫描 {scanned} 新增 {inserted} 跳过 {skipped} 失败 {failed} 当前 {current}",
             )
 
+    async def _on_error(sku_id: str, error_msg: str):
+        await _log_run(db, run_id, "error", f"sku detail backfill 失败: sku_id={sku_id} {error_msg}")
+
     scanned, inserted, skipped, failed = await crawl_jingtan_sku_homepage_details_desc_backfill(
         db,
         on_progress=_on_progress,
+        on_error=_on_error,
     )
     await _log_run(
         db,
@@ -263,6 +307,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_archive_id_backfill,
+    },
+    "archive_id_refresh_near_max": {
+        "name": "藏品ID邻域刷新",
+        "description": "围绕当前最大 archiveId 前后各100重新拉取并更新",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 6 * 60 * 60,
+        "default_enabled": False,
+        "func": task_archive_id_refresh_near_max,
     },
     "ip_uid_backfill": {
         "name": "IP UID补齐",
