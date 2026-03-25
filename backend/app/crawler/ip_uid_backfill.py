@@ -6,26 +6,9 @@ from loguru import logger
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crawler.client import crawler_client
+from app.crawler.archive_detail_service import fetch_archive_detail
 from app.crawler.ip_crawler import fetch_ip_profile, _extract_fans_count
 from app.database.models import Archive, IP
-
-
-async def _fetch_archive_detail_for_ip(archive_id: str, platform_id: Optional[int]) -> Optional[dict]:
-    """获取藏品详情，仅用于提取 ipId"""
-    payload = {
-        "archiveId": archive_id,
-        "platformId": str(platform_id) if platform_id is not None else "741",
-        "active": "6",
-        "page": 1,
-        "pageSize": 20,
-        "sellStatus": 1,
-    }
-    resp = await crawler_client.post_safe("/h5/goods/archive", payload)
-    if not resp:
-        return None
-    data = resp.get("data")
-    return data if isinstance(data, dict) else None
 
 
 async def backfill_ip_source_uid(
@@ -76,7 +59,7 @@ async def backfill_ip_source_uid(
         archive_id, platform_id = archive_row
 
         # 获取藏品详情获取 ipId
-        detail = await _fetch_archive_detail_for_ip(archive_id, platform_id)
+        detail = await fetch_archive_detail(archive_id, platform_id)
         if not detail:
             logger.debug(f"IP [{ip_obj.id}] {ip_obj.ip_name}: 藏品 {archive_id} 详情获取失败")
             if on_progress is not None and (processed % 10 == 0 or processed == total):

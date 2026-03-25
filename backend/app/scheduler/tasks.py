@@ -42,8 +42,8 @@ async def _log_run(db, run_id: int, level: str, message: str):
     await db.commit()
 
 
-async def task_crawl_today_calendar(db, run_id: int):
-    logger.info("定时任务: 爬取今日日历")
+async def task_crawl_recent_calendar_pipeline(db, run_id: int):
+    logger.info("定时任务: 同步今明日日历链路")
     today = datetime.utcnow().strftime("%Y-%m-%d")
     tomorrow = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
     await _log_run(db, run_id, "info", f"开始爬取日历: {today} ~ {tomorrow}")
@@ -67,8 +67,8 @@ async def task_crawl_details(db, run_id: int):
     await _log_run(db, run_id, "info", "补全发行详情完成")
 
 
-async def task_crawl_archives(db, run_id: int):
-    logger.info("定时任务: 爬取藏品列表")
+async def task_sync_archives(db, run_id: int):
+    logger.info("定时任务: 同步藏品库")
     await _log_run(db, run_id, "info", "开始更新藏品库")
     await crawl_archives(db)
     await _log_run(db, run_id, "info", "更新藏品库完成")
@@ -233,7 +233,7 @@ async def task_crawl_jingtan_sku_details(db, run_id: int):
     )
 
 
-async def task_crawl_jingtan_sku_details_desc_backfill(db, run_id: int):
+async def task_crawl_jingtan_sku_details_descending_backfill(db, run_id: int):
     logger.info("定时任务: 鲸探藏品详情倒序回填")
     await _log_run(db, run_id, "info", "开始倒序回填鲸探藏品详情")
 
@@ -264,60 +264,60 @@ async def task_crawl_jingtan_sku_details_desc_backfill(db, run_id: int):
 
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
-        "name": "今日日历",
-        "description": "爬取今日和明日发行日历",
+        "name": "今明日日历链路",
+        "description": "抓取今日与明日日历，并补齐发行详情和关联藏品",
         "default_schedule_type": "interval",
         "default_interval_seconds": 60 * 60,
-        "func": task_crawl_today_calendar,
+        "func": task_crawl_recent_calendar_pipeline,
     },
     "crawl_details": {
-        "name": "补全详情",
-        "description": "爬取缺少详情的发行记录",
+        "name": "发行详情补齐",
+        "description": "补齐缺少 LaunchDetail 的发行记录",
         "default_schedule_type": "interval",
         "default_interval_seconds": 60 * 60,
         "func": task_crawl_details,
     },
     "crawl_archives": {
-        "name": "藏品列表",
-        "description": "更新藏品库",
+        "name": "藏品库同步",
+        "description": "分页同步藏品列表，并按需补齐类型与 IP 信息",
         "default_schedule_type": "interval",
         "default_interval_seconds": 6 * 60 * 60,
-        "func": task_crawl_archives,
+        "func": task_sync_archives,
     },
     "full_crawl": {
-        "name": "全量爬取",
-        "description": "按时间范围全量爬取日历、详情、藏品并补齐关联",
+        "name": "全量回扫链路",
+        "description": "从 today+7 向前回扫日历，直到连续15天无数据，再补详情、关联藏品和藏品库",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_full_crawl,
     },
     "recent_7d_crawl": {
-        "name": "近7天爬取",
-        "description": "重跑近7天日历、详情并补齐关联藏品",
+        "name": "近7天重跑链路",
+        "description": "重跑近7天日历，并补齐详情、关联藏品和藏品库",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_recent_7d_crawl,
     },
     "archive_id_backfill": {
-        "name": "藏品ID补齐",
-        "description": "从数据库最大 archiveId 往前补齐到 15000（跳过已存在）",
+        "name": "藏品ID倒序补齐",
+        "description": "从数据库最大 archive_id 向下补齐到 15000，并跳过已存在与 miss 记录",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_archive_id_backfill,
     },
     "archive_id_refresh_near_max": {
-        "name": "藏品ID邻域刷新",
-        "description": "围绕当前最大 archiveId 前后各100重新拉取并更新",
+        "name": "最大ID邻域刷新",
+        "description": "围绕当前最大 archive_id 前后各100重新拉取并强制更新",
         "default_schedule_type": "interval",
         "default_interval_seconds": 6 * 60 * 60,
         "default_enabled": False,
         "func": task_archive_id_refresh_near_max,
     },
     "ip_uid_backfill": {
-        "name": "IP UID补齐",
+        "name": "IP source_uid补齐",
         "description": "通过关联藏品详情补齐 IP 的 source_uid",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
@@ -332,28 +332,28 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "func": task_import_planes,
     },
     "crawl_jingtan_sku_wiki": {
-        "name": "鲸探藏品库",
-        "description": "爬取并更新鲸探藏品库(sku wiki)",
+        "name": "鲸探 SKU Wiki 同步",
+        "description": "分页抓取 AntFans SKU Wiki 列表并更新本地 wiki 表",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_crawl_jingtan_sku_wiki,
     },
     "crawl_jingtan_sku_details": {
-        "name": "鲸探藏品详情",
-        "description": "遍历藏品库并抓取详情入库保存",
+        "name": "鲸探 SKU 详情同步",
+        "description": "遍历 wiki 中的 sku_id，抓取主页详情并同步详情表与 wiki 表",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_crawl_jingtan_sku_details,
     },
     "crawl_jingtan_sku_details_backfill": {
-        "name": "鲸探详情倒序回填",
-        "description": "从最大 sku_id 倒序回填缺失详情并补充两张 SKU 表",
+        "name": "鲸探 SKU 倒序回填",
+        "description": "从最大 sku_id 向下扫描缺失详情，并同步详情表与 wiki 表",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
-        "func": task_crawl_jingtan_sku_details_desc_backfill,
+        "func": task_crawl_jingtan_sku_details_descending_backfill,
     },
 }
 

@@ -1,5 +1,4 @@
 """发行日历爬虫（第一阶段：日历基础数据 + 详情合并落库）"""
-import json
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Optional, Tuple
 
@@ -8,7 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crawler.client import crawler_client
-from app.database.models import IP, LaunchCalendar, LaunchDetail, Platform
+from app.crawler.launch_detail_service import save_launch_detail
+from app.crawler.platform_ip_service import ensure_platform_and_ip_from_calendar_item
+from app.database.models import LaunchCalendar
 
 
 def _parse_datetime(value: Any) -> Optional[datetime]:
@@ -85,19 +86,14 @@ async def _upsert_calendar_from_list_item(db: AsyncSession, item: dict) -> bool:
     )
     existing = existing_result.scalar_one_or_none()
 
-    platform_id, ip_id = await _ensure_platform_ip(db, item)
+    platform_id, ip_id = await ensure_platform_and_ip_from_calendar_item(db, item)
 
     if existing:
         if existing.platform_id is None and platform_id is not None:
             existing.platform_id = platform_id
         if existing.ip_id is None and ip_id is not None:
             existing.ip_id = ip_id
-
-        detail_result = await db.execute(
-            select(LaunchDetail).where(LaunchDetail.launch_id == existing.id)
-        )
-        if not detail_result.scalar_one_or_none():
-            await _ensure_launch_detail(db, existing.id, source_id)
+        await save_launch_detail(db, existing.id, source_id, skip_existing=True)
         return False
 
     calendar = LaunchCalendar(
@@ -114,105 +110,8 @@ async def _upsert_calendar_from_list_item(db: AsyncSession, item: dict) -> bool:
     )
     db.add(calendar)
     await db.flush()
-    await _ensure_launch_detail(db, calendar.id, source_id)
+    await save_launch_detail(db, calendar.id, source_id, skip_existing=False)
     return True
-
-
-async def _ensure_platform_ip(db: AsyncSession, item: dict) -> Tuple[Optional[int], Optional[int]]:
-    platform_id = None
-    platform_api_id = item.get("platformId")
-    platform_name = item.get("platformName")
-    platform_icon = item.get("platformImg")
-
-    if platform_api_id or platform_name:
-        platform = await _get_or_create_platform(db, platform_api_id, platform_name, platform_icon)
-        platform_id = platform.id
-
-    ip_id = None
-    ip_name = item.get("ipName")
-    ip_avatar = item.get("ipAvatar")
-    if ip_name:
-        ip_obj = await _get_or_create_ip(db, ip_name, ip_avatar, platform_id)
-        ip_id = ip_obj.id
-
-    return platform_id, ip_id
-
-
-async def _ensure_launch_detail(db: AsyncSession, launch_id: int, source_id: str):
-    resp = await crawler_client.post_safe(
-        "/h5/news/launchCalendar/detailed",
-        {"id": int(source_id) if source_id.isdigit() else source_id},
-    )
-    if not resp:
-        return
-    detail_data = resp.get("data") or {}
-    if not isinstance(detail_data, dict) or not detail_data:
-        return
-
-    detail = LaunchDetail(
-        launch_id=launch_id,
-        priority_purchase_time=_parse_datetime(detail_data.get("priorityPurchaseTime")),
-        context_condition=detail_data.get("contextCondition"),
-        status=str(detail_data.get("status")) if detail_data.get("status") is not None else None,
-        raw_json=json.dumps(detail_data, ensure_ascii=False),
-    )
-    db.add(detail)
-    await db.flush()
-
-
-async def _get_or_create_platform(
-    db: AsyncSession,
-    platform_api_id: Any,
-    name: Any,
-    icon: Any,
-) -> Platform:
-    platform = None
-    if platform_api_id is not None:
-        try:
-            platform_id = int(platform_api_id)
-            result = await db.execute(select(Platform).where(Platform.id == platform_id))
-            platform = result.scalar_one_or_none()
-            if not platform and name:
-                platform = Platform(id=platform_id, name=str(name), icon=icon)
-                db.add(platform)
-                await db.flush()
-                return platform
-        except (ValueError, TypeError):
-            platform = None
-
-    if name:
-        result = await db.execute(select(Platform).where(Platform.name == str(name)))
-        platform = result.scalar_one_or_none()
-        if platform:
-            if icon and not platform.icon:
-                platform.icon = icon
-            return platform
-
-    platform = Platform(name=str(name or "未知平台"), icon=icon)
-    db.add(platform)
-    await db.flush()
-    return platform
-
-
-async def _get_or_create_ip(
-    db: AsyncSession,
-    ip_name: Any,
-    ip_avatar: Any,
-    platform_id: Optional[int],
-) -> IP:
-    name = str(ip_name or "未知IP")
-    result = await db.execute(
-        select(IP).where(IP.ip_name == name, IP.platform_id == platform_id)
-    )
-    ip_obj = result.scalar_one_or_none()
-    if ip_obj:
-        if ip_avatar and not ip_obj.ip_avatar:
-            ip_obj.ip_avatar = ip_avatar
-        return ip_obj
-    ip_obj = IP(ip_name=name, ip_avatar=ip_avatar, platform_id=platform_id)
-    db.add(ip_obj)
-    await db.flush()
-    return ip_obj
 
 
 async def crawl_calendar_range(

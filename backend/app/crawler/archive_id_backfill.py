@@ -6,7 +6,7 @@ from loguru import logger
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crawler.calendar_archive_backfill import _fetch_archive_detail, _upsert_archive_from_detail
+from app.crawler.archive_detail_service import fetch_archive_detail, upsert_archive_from_detail
 from app.database.models import Archive, ArchiveMiss
 
 
@@ -56,9 +56,9 @@ async def _fetch_and_upsert(
     force_update: bool = False,
 ) -> Optional[bool]:
     """拉取单个藏品详情并入库，返回 True=新增, False=API无数据, None=出错"""
-    detail = await _fetch_archive_detail(aid, platform_id)
+    detail = await fetch_archive_detail(aid, platform_id)
     if detail:
-        await _upsert_archive_from_detail(
+        await upsert_archive_from_detail(
             db,
             detail,
             {"archive_id": aid, "platform_id": platform_id},
@@ -149,8 +149,7 @@ async def refresh_archives_around_max_id(
     on_progress: Callable[[int, int, int, int], Awaitable[None]] | None = None,
     on_error: Callable[[str, str], Awaitable[None]] | None = None,
 ) -> Tuple[int, int, int]:
-    # max_id = await get_max_numeric_archive_id(db)
-    max_id = 15000
+    max_id = await get_max_numeric_archive_id(db)
     if max_id is None:
         return 0, 0, 0
 
