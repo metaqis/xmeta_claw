@@ -433,7 +433,7 @@ POST /h5/community/userHome {"uid":"30","fromType":"1"}  │
 每 20 条新增执行一次 commit
   │
   ▼
-继续下一批 ... 直到 stop_id (15000)
+继续下一批 ... 直到 stop_id (10000)
 ```
 
 ### 优化点
@@ -471,7 +471,7 @@ Platform (平台)
 | `crawl_archives` | 藏品库同步 | 每 6 小时 | `scheduler/tasks.py` + `archive_crawler.py` | 分页同步鲸探藏品列表，并按需补齐类型、数量和 IP 资料 |
 | `full_crawl` | 全量回扫链路 | 每天（默认禁用） | `scheduler/tasks.py` + `calendar_crawler.py` + `launch_detail_crawler.py` + `calendar_archive_backfill.py` + `archive_crawler.py` | 从 `today+7` 开始向前回扫日历，直到连续 15 天无数据，再统一补详情、关联藏品与藏品库 |
 | `recent_7d_crawl` | 近7天重跑链路 | 每天（默认禁用） | `scheduler/tasks.py` + `calendar_crawler.py` + `launch_detail_crawler.py` + `calendar_archive_backfill.py` + `archive_crawler.py` | 重跑近 7 天日历链路，适合补偿近期接口抖动或脏数据 |
-| `archive_id_backfill` | 藏品ID倒序补齐 | 每天（默认禁用） | `scheduler/tasks.py` + `archive_id_backfill.py` | 从数据库当前最大数值型 `archive_id` 向下扫描到 `15000`，跳过已存在记录与 miss 记录 |
+| `archive_id_backfill` | 藏品ID倒序补齐 | 每天（默认禁用） | `scheduler/tasks.py` + `archive_id_backfill.py` | 从数据库当前最大数值型 `archive_id` 向下扫描到 `10000`，跳过已存在记录与 miss 记录 |
 | `archive_id_refresh_near_max` | 最大ID邻域刷新 | 每 6 小时（默认禁用） | `scheduler/tasks.py` + `archive_id_backfill.py` | 围绕当前最大 `archive_id` 前后各 100 强制刷新，用于修复新近藏品的字段不完整问题 |
 | `ip_uid_backfill` | IP source_uid补齐 | 每天（默认禁用） | `scheduler/tasks.py` + `ip_uid_backfill.py` | 从已关联藏品详情中提取 `ipId`，回填 `IP.source_uid` 并顺带补资料 |
 | `import_planes_weekly` | 板块周导入 | 每周一 03:00 | `scheduler/tasks.py` + `services/plane_importer.py` | 导入板块数据，属于数据同步任务，不属于爬虫主链路 |
@@ -484,9 +484,9 @@ Platform (平台)
 | 入口 | 用途 | 说明 |
 |------|------|------|
 | `/tasks/{task_id}/run` | 通用任务入口 | 会创建 `TaskRun` / `TaskRunLog`，适合运维侧统一观测、取消和追踪 |
-| `/crawler/full` | 固定时间窗完整爬取 | 手动跑 `today-730 ~ today+7` 的日历窗口，语义不同于 `full_crawl` 的“连续无数据停止”回扫任务 |
-| `/crawler/calendar/{date}` | 单日日历抓取 | 只跑指定日期的日历抓取与关联藏品补齐，不会显式触发“全库缺失详情补齐” |
-| `/crawler/jingtan/sku-wiki` | 手动触发 SKU Wiki | 只暴露了 Wiki 列表抓取，未暴露 SKU 详情同步与倒序回填的独立入口 |
+| `/crawler/full` | 手动触发全量回扫链路 | 现已转入统一任务体系，内部触发 `full_crawl`，会返回 `run_id` 以便追踪 |
+| `/crawler/calendar/{date}` | 单日日历抓取 | 仍是参数化特例入口，执行指定日期的日历抓取与关联藏品补齐，暂未纳入统一任务体系 |
+| `/crawler/jingtan/sku-wiki` | 手动触发 SKU Wiki | 现已转入统一任务体系，内部触发 `crawl_jingtan_sku_wiki`，会返回 `run_id` |
 
 ### Crawler 模块职责对照
 
@@ -510,7 +510,7 @@ Platform (平台)
 2. 将 `crawl_calendar` 明确表达为“今明日日历链路”，因为它实际不止抓日历，还会补详情和关联藏品。
 3. 将 `crawl_archives` 明确表达为“藏品库同步”，因为它不仅拉列表，还会在必要时拉详情修正 `archive_type`、`total_goods_count` 和 `IP` 关系。
 4. 将 `crawl_jingtan_sku_details_backfill` 对应的内部命名统一为“descending backfill”，避免 `desc` 被误解为 description。
-5. 将 `/crawler/full` 明确标识为“固定时间窗完整爬取”，与调度任务 `full_crawl` 的回扫语义区分开。
+5. 将可无参手动入口尽量收敛到统一任务体系，当前 `/crawler/full` 与 `/crawler/jingtan/sku-wiki` 已能复用 `TaskRun / TaskRunLog` 链路。
 6. 将最大 ID 邻域刷新恢复为“围绕当前最大 `archive_id`”执行，避免函数名与实际行为不一致。
 7. 已抽离 `launch_detail_service.py`、`archive_detail_service.py`、`platform_ip_service.py` 三个共享模块，当前主要重复逻辑已进一步收敛，后续可以继续按“列表抓取 / 详情补齐 / 回填编排”三层再细化边界。
 

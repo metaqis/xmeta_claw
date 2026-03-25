@@ -122,11 +122,7 @@ async def task_recent_7d_crawl(db, run_id: int):
 
 
 async def task_archive_id_backfill(db, run_id: int):
-    max_id = await get_max_numeric_archive_id(db)
-    if max_id is None:
-        await _log_run(db, run_id, "info", "无可用藏品ID，跳过")
-        return
-    await _log_run(db, run_id, "info", f"开始藏品ID补齐: {max_id} -> 15000")
+    await _log_run(db, run_id, "info", "开始藏品ID补齐: 15000 -> 10000")
 
     async def _on_progress(scanned: int, created: int, total: int, skipped: int, errors: int):
         await _log_run(
@@ -139,8 +135,8 @@ async def task_archive_id_backfill(db, run_id: int):
 
     scanned, created = await backfill_archives_by_id_desc(
         db,
-        start_id=max_id,
-        stop_id=15000,
+        start_id=15000,
+        stop_id=10000,
         platform_id=741,
         on_progress=_on_progress,
         on_error=_on_error,
@@ -302,7 +298,7 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "archive_id_backfill": {
         "name": "藏品ID倒序补齐",
-        "description": "从数据库最大 archive_id 向下补齐到 15000，并跳过已存在与 miss 记录",
+        "description": "从 archive_id=15000 向下补齐到 10000，并跳过已存在与 miss 记录",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
