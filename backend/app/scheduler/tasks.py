@@ -15,7 +15,10 @@ from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar
 from app.crawler.calendar_crawler import crawl_calendar_for_date, crawl_calendar_range, crawl_calendar_backward_until_no_data
 from app.crawler.ip_uid_backfill import backfill_ip_source_uid
 from app.crawler.launch_detail_crawler import crawl_all_missing_details
-from app.crawler.jingtan_sku_homepage_detail_crawler import crawl_jingtan_sku_homepage_details
+from app.crawler.jingtan_sku_homepage_detail_crawler import (
+    crawl_jingtan_sku_homepage_details,
+    crawl_jingtan_sku_homepage_details_desc_backfill,
+)
 from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
@@ -190,6 +193,31 @@ async def task_crawl_jingtan_sku_details(db, run_id: int):
     )
 
 
+async def task_crawl_jingtan_sku_details_desc_backfill(db, run_id: int):
+    logger.info("定时任务: 鲸探藏品详情倒序回填")
+    await _log_run(db, run_id, "info", "开始倒序回填鲸探藏品详情")
+
+    async def _on_progress(scanned: int, inserted: int, skipped: int, failed: int, current: int):
+        if scanned % 20 == 0:
+            await _log_run(
+                db,
+                run_id,
+                "info",
+                f"sku detail backfill: 扫描 {scanned} 新增 {inserted} 跳过 {skipped} 失败 {failed} 当前 {current}",
+            )
+
+    scanned, inserted, skipped, failed = await crawl_jingtan_sku_homepage_details_desc_backfill(
+        db,
+        on_progress=_on_progress,
+    )
+    await _log_run(
+        db,
+        run_id,
+        "info",
+        f"回填完成: 扫描 {scanned} 新增 {inserted} 跳过 {skipped} 失败 {failed}",
+    )
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
         "name": "今日日历",
@@ -266,6 +294,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_crawl_jingtan_sku_details,
+    },
+    "crawl_jingtan_sku_details_backfill": {
+        "name": "鲸探详情倒序回填",
+        "description": "从最大 sku_id 倒序回填缺失详情并补充两张 SKU 表",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_crawl_jingtan_sku_details_desc_backfill,
     },
 }
 

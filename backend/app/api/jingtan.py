@@ -151,7 +151,7 @@ async def list_sku_wikis(
             | JingtanSkuWiki.owner.ilike(like)
         )
 
-    query = query.order_by(JingtanSkuWiki.sku_id.desc())
+    query = query.order_by(JingtanSkuWiki.sku_issue_time_ms.desc())
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0

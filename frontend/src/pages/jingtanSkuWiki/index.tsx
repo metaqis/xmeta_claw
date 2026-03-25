@@ -9,19 +9,19 @@ import { useAuthStore } from '../../store/auth'
 const { Text } = Typography
 const { useBreakpoint } = Grid
 const FIRST_CATEGORY_OPTIONS = [
-  { label: '文化(WH)', value: 'WH' },
-  { label: '娱乐(YL)', value: 'YL' },
-  { label: '艺术(YS)', value: 'YS' },
-  { label: '潮玩(CW)', value: 'CW' },
-  { label: '体育(TY)', value: 'TY' },
-  { label: '品牌(PP)', value: 'PP' },
-  { label: '科技(KJ)', value: 'KJ' },
-  { label: 'ACG(ACG)', value: 'ACG' },
-  { label: '景区(JQ)', value: 'JQ' },
-  { label: '非遗(AFY)', value: 'AFY' },
-  { label: '游戏(AYX)', value: 'AYX' },
-  { label: '原创设计(AYCSJ)', value: 'AYCSJ' },
-  { label: '其他(QT)', value: 'QT' },
+  { label: '文化', value: 'WH' },
+  { label: '娱乐', value: 'YL' },
+  { label: '艺术', value: 'YS' },
+  { label: '潮玩', value: 'CW' },
+  { label: '体育', value: 'TY' },
+  { label: '品牌', value: 'PP' },
+  { label: '科技', value: 'KJ' },
+  { label: 'ACG', value: 'ACG' },
+  { label: '景区', value: 'JQ' },
+  { label: '非遗', value: 'AFY' },
+  { label: '游戏', value: 'AYX' },
+  { label: '原创设计', value: 'AYCSJ' },
+  { label: '其他', value: 'QT' },
 ]
 
 function prettyJson(raw?: string | null) {
