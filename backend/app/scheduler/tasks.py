@@ -23,6 +23,7 @@ from app.crawler.launch_detail_crawler import crawl_all_missing_details
 from app.crawler.jingtan_sku_homepage_detail_crawler import (
     crawl_jingtan_sku_homepage_details,
     crawl_jingtan_sku_homepage_details_desc_backfill,
+    get_detail_numeric_sku_id_bounds,
 )
 from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
 from app.database.db import async_session
@@ -232,7 +233,16 @@ async def task_crawl_jingtan_sku_details(db, run_id: int):
 
 async def task_crawl_jingtan_sku_details_descending_backfill(db, run_id: int):
     logger.info("定时任务: 鲸探藏品详情倒序回填")
-    await _log_run(db, run_id, "info", "开始倒序回填鲸探藏品详情")
+    max_sku_id, min_sku_id = await get_detail_numeric_sku_id_bounds(db)
+    if max_sku_id is None or min_sku_id is None:
+        await _log_run(db, run_id, "info", "详细表中无可用 sku_id，跳过倒序回填")
+        return
+    await _log_run(
+        db,
+        run_id,
+        "info",
+        f"开始倒序回填鲸探藏品详情（详细表最大ID -> 最小ID）: max_id={max_sku_id} min_id={min_sku_id}",
+    )
 
     async def _on_progress(scanned: int, inserted: int, skipped: int, failed: int, current: int):
         if scanned % 20 == 0:
@@ -248,6 +258,8 @@ async def task_crawl_jingtan_sku_details_descending_backfill(db, run_id: int):
 
     scanned, inserted, skipped, failed, skipped_sku_ids, failed_sku_ids = await crawl_jingtan_sku_homepage_details_desc_backfill(
         db,
+        start_sku_id=max_sku_id,
+        stop_sku_id=min_sku_id,
         on_progress=_on_progress,
         on_error=_on_error,
     )
@@ -358,7 +370,7 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "crawl_jingtan_sku_details_backfill": {
         "name": "鲸探 SKU 倒序回填",
-        "description": "从最大 sku_id 向下扫描，只补齐详情表中缺失的记录；详情优先入库，wiki 表尽力同步",
+        "description": "从详细表中的最大 sku_id 向下扫描到最小 sku_id，只补齐详情表中缺失的记录；详情优先入库，wiki 表尽力同步",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,

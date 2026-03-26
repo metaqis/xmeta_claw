@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Awaitable, Callable, Optional, Tuple
 
 from loguru import logger
-from sqlalchemy import func, or_, select
+from sqlalchemy import Integer, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -291,17 +291,19 @@ async def _upsert_sku_homepage_detail_and_try_sync_wiki(
     return True
 
 
-async def _get_max_numeric_sku_id(db: AsyncSession) -> Optional[int]:
-    wiki_max_result = await db.execute(select(func.max(JingtanSkuWiki.sku_id)))
-    detail_max_result = await db.execute(select(func.max(JingtanSkuHomepageDetail.sku_id)))
-    candidates = [
-        _as_int(wiki_max_result.scalar_one_or_none()),
-        _as_int(detail_max_result.scalar_one_or_none()),
-    ]
-    numeric = [x for x in candidates if isinstance(x, int)]
-    if not numeric:
-        return None
-    return max(numeric)
+async def get_detail_numeric_sku_id_bounds(db: AsyncSession) -> Tuple[Optional[int], Optional[int]]:
+    detail_bounds_result = await db.execute(
+        select(
+            func.max(cast(JingtanSkuHomepageDetail.sku_id, Integer)),
+            func.min(cast(JingtanSkuHomepageDetail.sku_id, Integer)),
+        ).where(JingtanSkuHomepageDetail.sku_id.op("~")("^[0-9]+$"))
+    )
+    detail_max, detail_min = detail_bounds_result.one()
+    max_sku_id = _as_int(detail_max)
+    min_sku_id = _as_int(detail_min)
+    if max_sku_id is None or min_sku_id is None:
+        return None, None
+    return max_sku_id, min_sku_id
 
 
 async def _sku_homepage_detail_exists(db: AsyncSession, sku_id: str) -> bool:
@@ -418,7 +420,7 @@ async def crawl_jingtan_sku_homepage_details(
 async def crawl_jingtan_sku_homepage_details_desc_backfill(
     db: AsyncSession,
     start_sku_id: Optional[int] = None,
-    stop_sku_id: int = 0,
+    stop_sku_id: Optional[int] = None,
     max_scan: Optional[int] = None,
     commit_every: int = 20,
     request_interval_seconds: Optional[float] = None,
@@ -426,9 +428,16 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
 ) -> Tuple[int, int, int, int, list[str], list[str]]:
     op = settings.ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE
-    start = start_sku_id if start_sku_id is not None else await _get_max_numeric_sku_id(db)
+    db_max_sku_id, db_min_sku_id = await get_detail_numeric_sku_id_bounds(db)
+    start = start_sku_id if start_sku_id is not None else db_max_sku_id
     if start is None:
-        raise ValueError("无可用起始 sku_id")
+        raise ValueError("数据库中无可用起始 sku_id")
+    if stop_sku_id is not None:
+        lower_bound = max(0, int(stop_sku_id))
+    elif db_min_sku_id is not None:
+        lower_bound = max(0, int(db_min_sku_id))
+    else:
+        raise ValueError("数据库中无可用最小 sku_id")
 
     scanned = 0
     inserted = 0
@@ -437,7 +446,6 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     skipped_sku_ids: list[str] = []
     failed_sku_ids: list[str] = []
     current = int(start)
-    lower_bound = max(0, int(stop_sku_id))
     max_scan_limit = int(max_scan) if max_scan is not None else None
     base_interval = (
         float(request_interval_seconds)
