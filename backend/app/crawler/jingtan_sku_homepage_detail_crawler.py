@@ -136,7 +136,7 @@ async def _guess_wiki_categories(
     return best_first, best_first_name, best_second_key[1], second_name_map.get(best_second_key)
 
 
-async def _upsert_sku_homepage_and_wiki(
+async def _upsert_sku_homepage_detail(
     db: AsyncSession,
     sku_id: str,
     data: dict,
@@ -198,6 +198,19 @@ async def _upsert_sku_homepage_and_wiki(
             )
         )
 
+    return True
+
+
+async def _sync_sku_wiki_from_homepage(
+    db: AsyncSession,
+    sku_id: str,
+    data: dict,
+    now: datetime,
+) -> bool:
+    model = data.get("skuHomepageModel")
+    if not isinstance(model, dict):
+        return False
+
     model_first_category = _as_str(model.get("firstCategory"))
     model_first_category_name = _as_str(model.get("firstCategoryName"))
     model_second_category = _as_str(model.get("secondCategory"))
@@ -256,6 +269,25 @@ async def _upsert_sku_homepage_and_wiki(
                 **wiki_values,
             )
         )
+    return True
+
+
+async def _upsert_sku_homepage_detail_and_try_sync_wiki(
+    db: AsyncSession,
+    sku_id: str,
+    data: dict,
+    now: datetime,
+) -> bool:
+    success = await _upsert_sku_homepage_detail(db=db, sku_id=sku_id, data=data, now=now)
+    if not success:
+        return False
+    await db.flush()
+    try:
+        async with db.begin_nested():
+            await _sync_sku_wiki_from_homepage(db=db, sku_id=sku_id, data=data, now=now)
+            await db.flush()
+    except Exception as e:
+        logger.warning(f"sku_id={sku_id} wiki 同步失败，但详情已入库: {e}")
     return True
 
 
@@ -348,7 +380,12 @@ async def crawl_jingtan_sku_homepage_details(
 
         now = datetime.utcnow()
         try:
-            success = await _upsert_sku_homepage_and_wiki(db=db, sku_id=sku_id, data=data, now=now)
+            success = await _upsert_sku_homepage_detail_and_try_sync_wiki(
+                db=db,
+                sku_id=sku_id,
+                data=data,
+                now=now,
+            )
         except Exception as e:
             failed += 1
             err_msg = f"入库异常: {e}"
@@ -387,7 +424,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     request_interval_seconds: Optional[float] = None,
     on_progress: Optional[Callable[[int, int, int, int, int], Awaitable[None]]] = None,
     on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
-) -> Tuple[int, int, int, int]:
+) -> Tuple[int, int, int, int, list[str], list[str]]:
     op = settings.ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE
     start = start_sku_id if start_sku_id is not None else await _get_max_numeric_sku_id(db)
     if start is None:
@@ -397,6 +434,8 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     inserted = 0
     skipped = 0
     failed = 0
+    skipped_sku_ids: list[str] = []
+    failed_sku_ids: list[str] = []
     current = int(start)
     lower_bound = max(0, int(stop_sku_id))
     max_scan_limit = int(max_scan) if max_scan is not None else None
@@ -411,6 +450,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
         scanned += 1
         if await _sku_homepage_detail_exists(db, sku_id):
             skipped += 1
+            skipped_sku_ids.append(sku_id)
             if on_progress:
                 await on_progress(scanned, inserted, skipped, failed, current)
             current -= 1
@@ -422,6 +462,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
         except Exception as e:
             failed += 1
             err_msg = f"请求异常: {e}"
+            failed_sku_ids.append(sku_id)
             logger.warning(f"sku_id={sku_id} {err_msg}")
             if on_error:
                 await on_error(sku_id, err_msg)
@@ -434,6 +475,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
         if resp.get("status") != 200 or not isinstance(data, dict) or data.get("bizStatusCode") != 10000:
             failed += 1
             err_msg = _extract_resp_error(resp, data if isinstance(data, dict) else None)
+            failed_sku_ids.append(sku_id)
             logger.warning(f"sku_id={sku_id} 回填失败: {err_msg}")
             if on_error:
                 await on_error(sku_id, err_msg)
@@ -444,10 +486,16 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
 
         now = datetime.utcnow()
         try:
-            success = await _upsert_sku_homepage_and_wiki(db=db, sku_id=sku_id, data=data, now=now)
+            success = await _upsert_sku_homepage_detail_and_try_sync_wiki(
+                db=db,
+                sku_id=sku_id,
+                data=data,
+                now=now,
+            )
         except Exception as e:
             failed += 1
             err_msg = f"入库异常: {e}"
+            failed_sku_ids.append(sku_id)
             logger.warning(f"sku_id={sku_id} {err_msg}")
             if on_error:
                 await on_error(sku_id, err_msg)
@@ -460,6 +508,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
         else:
             failed += 1
             err_msg = "入库失败: 详情结构不完整"
+            failed_sku_ids.append(sku_id)
             logger.warning(f"sku_id={sku_id} {err_msg}")
             if on_error:
                 await on_error(sku_id, err_msg)
@@ -474,4 +523,6 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     logger.info(
         f"SKU 倒序回填完成: start={start} scanned={scanned} inserted={inserted} skipped={skipped} failed={failed}"
     )
-    return scanned, inserted, skipped, failed
+    logger.info(f"skipped_sku_ids: {json.dumps(skipped_sku_ids, ensure_ascii=False)}")
+    logger.info(f"failed_sku_ids: {json.dumps(failed_sku_ids, ensure_ascii=False)}")
+    return scanned, inserted, skipped, failed, skipped_sku_ids, failed_sku_ids

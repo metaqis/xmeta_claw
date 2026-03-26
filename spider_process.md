@@ -476,8 +476,8 @@ Platform (平台)
 | `ip_uid_backfill` | IP source_uid补齐 | 每天（默认禁用） | `scheduler/tasks.py` + `ip_uid_backfill.py` | 从已关联藏品详情中提取 `ipId`，回填 `IP.source_uid` 并顺带补资料 |
 | `import_planes_weekly` | 板块周导入 | 每周一 03:00 | `scheduler/tasks.py` + `services/plane_importer.py` | 导入板块数据，属于数据同步任务，不属于爬虫主链路 |
 | `crawl_jingtan_sku_wiki` | 鲸探 SKU Wiki 同步 | 每天（默认禁用） | `scheduler/tasks.py` + `jingtan_sku_wiki_crawler.py` | 按一级分类分页抓取 AntFans SKU Wiki 列表，更新本地 `JingtanSkuWiki` |
-| `crawl_jingtan_sku_details` | 鲸探 SKU 详情同步 | 每天（默认禁用） | `scheduler/tasks.py` + `jingtan_sku_homepage_detail_crawler.py` | 遍历 Wiki 中已有 `sku_id`，只补齐 `JingtanSkuHomepageDetail` 中缺失的详情记录，并同步 `JingtanSkuWiki` |
-| `crawl_jingtan_sku_details_backfill` | 鲸探 SKU 倒序回填 | 每天（默认禁用） | `scheduler/tasks.py` + `jingtan_sku_homepage_detail_crawler.py` | 以最大 `sku_id` 为起点向下扫描，只补齐 `JingtanSkuHomepageDetail` 中缺失的鲸探详情数据 |
+| `crawl_jingtan_sku_details` | 鲸探 SKU 详情同步 | 每天（默认禁用） | `scheduler/tasks.py` + `jingtan_sku_homepage_detail_crawler.py` | 遍历 Wiki 中已有 `sku_id`，只补齐 `JingtanSkuHomepageDetail` 中缺失的详情记录；详情优先入库，Wiki 表尽力同步 |
+| `crawl_jingtan_sku_details_backfill` | 鲸探 SKU 倒序回填 | 每天（默认禁用） | `scheduler/tasks.py` + `jingtan_sku_homepage_detail_crawler.py` | 以最大 `sku_id` 为起点向下扫描，只补齐 `JingtanSkuHomepageDetail` 中缺失的鲸探详情数据；回填结束后输出 `skipped_sku_ids` 与 `failed_sku_ids` |
 
 ### 手动触发入口
 

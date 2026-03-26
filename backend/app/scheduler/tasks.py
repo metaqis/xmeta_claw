@@ -1,5 +1,6 @@
 """定时任务调度"""
 import asyncio
+import json
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Optional
 
@@ -245,7 +246,7 @@ async def task_crawl_jingtan_sku_details_descending_backfill(db, run_id: int):
     async def _on_error(sku_id: str, error_msg: str):
         await _log_run(db, run_id, "error", f"sku detail backfill 失败: sku_id={sku_id} {error_msg}")
 
-    scanned, inserted, skipped, failed = await crawl_jingtan_sku_homepage_details_desc_backfill(
+    scanned, inserted, skipped, failed, skipped_sku_ids, failed_sku_ids = await crawl_jingtan_sku_homepage_details_desc_backfill(
         db,
         on_progress=_on_progress,
         on_error=_on_error,
@@ -255,6 +256,18 @@ async def task_crawl_jingtan_sku_details_descending_backfill(db, run_id: int):
         run_id,
         "info",
         f"回填完成: 扫描 {scanned} 新增 {inserted} 跳过 {skipped} 失败 {failed}",
+    )
+    await _log_run(
+        db,
+        run_id,
+        "info",
+        f"skipped_sku_ids: {json.dumps(skipped_sku_ids, ensure_ascii=False)}",
+    )
+    await _log_run(
+        db,
+        run_id,
+        "info",
+        f"failed_sku_ids: {json.dumps(failed_sku_ids, ensure_ascii=False)}",
     )
 
 
@@ -345,7 +358,7 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "crawl_jingtan_sku_details_backfill": {
         "name": "鲸探 SKU 倒序回填",
-        "description": "从最大 sku_id 向下扫描，只补齐详情表中缺失的记录，并同步 wiki 表",
+        "description": "从最大 sku_id 向下扫描，只补齐详情表中缺失的记录；详情优先入库，wiki 表尽力同步",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
