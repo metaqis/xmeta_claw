@@ -337,7 +337,7 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "crawl_jingtan_sku_details": {
         "name": "鲸探 SKU 详情同步",
-        "description": "遍历 wiki 中的 sku_id，抓取主页详情并同步详情表与 wiki 表",
+        "description": "遍历 wiki 中的 sku_id，只补齐详情表里缺失的记录，并同步 wiki 表",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
@@ -345,7 +345,7 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "crawl_jingtan_sku_details_backfill": {
         "name": "鲸探 SKU 倒序回填",
-        "description": "从最大 sku_id 向下扫描缺失详情，并同步详情表与 wiki 表",
+        "description": "从最大 sku_id 向下扫描，只补齐详情表中缺失的记录，并同步 wiki 表",
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,

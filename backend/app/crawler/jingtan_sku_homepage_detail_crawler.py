@@ -272,9 +272,14 @@ async def _get_max_numeric_sku_id(db: AsyncSession) -> Optional[int]:
     return max(numeric)
 
 
+async def _sku_homepage_detail_exists(db: AsyncSession, sku_id: str) -> bool:
+    existing = await db.get(JingtanSkuHomepageDetail, sku_id)
+    return existing is not None
+
+
 async def crawl_jingtan_sku_homepage_details(
     db: AsyncSession,
-    only_missing: bool = False,
+    only_missing: bool = True,
     commit_every: int = 20,
     on_progress: Optional[Callable[[int, int, int, int], Awaitable[None]]] = None,
     on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
@@ -293,12 +298,10 @@ async def crawl_jingtan_sku_homepage_details(
 
     for sku_id in sku_ids:
         processed += 1
-        if only_missing:
-            existing = await db.get(JingtanSkuHomepageDetail, sku_id)
-            if existing:
-                if on_progress:
-                    await on_progress(processed, upserted, failed, total)
-                continue
+        if only_missing and await _sku_homepage_detail_exists(db, sku_id):
+            if on_progress:
+                await on_progress(processed, upserted, failed, total)
+            continue
 
         payload = [{"source": "collectionPreview", "targetSkuId": sku_id}]
         try:
@@ -406,8 +409,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     while current >= lower_bound and (max_scan_limit is None or scanned < max(1, max_scan_limit)):
         sku_id = str(current)
         scanned += 1
-        existing = await db.get(JingtanSkuHomepageDetail, sku_id)
-        if existing:
+        if await _sku_homepage_detail_exists(db, sku_id):
             skipped += 1
             if on_progress:
                 await on_progress(scanned, inserted, skipped, failed, current)
