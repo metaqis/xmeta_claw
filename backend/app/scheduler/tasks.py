@@ -16,6 +16,7 @@ from app.crawler.archive_id_backfill import (
 )
 from app.crawler.calendar_archive_backfill import backfill_archives_for_calendar_range
 from app.crawler.calendar_crawler import crawl_calendar_for_date_stats, crawl_calendar_range
+from app.crawler.ip_crawler import refresh_ip_profiles
 from app.crawler.ip_uid_backfill import backfill_ip_source_uid
 from app.crawler.jingtan_sku_homepage_detail_crawler import (
     crawl_jingtan_sku_homepage_details,
@@ -102,6 +103,16 @@ async def task_ip_uid_backfill(db, run_id: int):
 
     processed, updated = await backfill_ip_source_uid(db, on_progress=_on_progress)
     await _log_run(db, run_id, "info", f"IP source_uid 补齐完成: 处理 {processed} 更新 {updated}")
+
+
+async def task_ip_profile_refresh(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始刷新 IP 资料 (粉丝数/头像/简介)")
+
+    async def _on_progress(processed: int, updated: int, total: int):
+        await _log_run(db, run_id, "info", f"IP 资料刷新进度: {processed}/{total} 已更新 {updated}")
+
+    processed, updated = await refresh_ip_profiles(db, on_progress=_on_progress)
+    await _log_run(db, run_id, "info", f"IP 资料刷新完成: 处理 {processed} 更新 {updated}")
 
 
 async def task_import_planes(db, run_id: int):
@@ -196,6 +207,13 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_schedule_type": "interval",
         "default_interval_seconds": 24 * 60 * 60,
         "func": task_ip_uid_backfill,
+    },
+    "ip_profile_refresh": {
+        "name": "IP 资料刷新",
+        "description": "重新拉取所有已知 source_uid 的 IP 主页，更新粉丝数、头像、简介",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "func": task_ip_profile_refresh,
     },
     "import_planes_daily": {
         "name": "版块每日导入",

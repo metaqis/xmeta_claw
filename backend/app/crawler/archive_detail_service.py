@@ -57,7 +57,8 @@ async def archive_needs_detail_sync(
     ip_obj = None
     if existing_archive.ip_id is not None:
         ip_obj = await db.get(IP, existing_archive.ip_id)
-    needs_ip = (ip_obj is None) or (ip_obj.source_uid is None) or (not ip_obj.description) or (ip_obj.fans_count is None)
+    # 只有 ip_id 完全缺失或 source_uid 未知时才需要重新同步（fans_count/description 由独立的 IP 资料刷新任务维护）
+    needs_ip = (ip_obj is None) or (ip_obj.source_uid is None)
     needs_type = (not existing_archive.archive_type) or (
         isinstance(existing_archive.archive_type, str) and existing_archive.archive_type.isdigit()
     )

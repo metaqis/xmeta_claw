@@ -105,7 +105,7 @@ async def _upsert_calendar_from_list_item(
             existing.img = item.get("img")
             existing.priority_purchase_num = item.get("priorityPurchaseNum") or 0
             existing.is_priority_purchase = bool(item.get("isPriorityPurchase"))
-        await save_launch_detail(db, existing.id, source_id, skip_existing=not force_update)
+        await save_launch_detail(db, existing.id, source_id, skip_existing=True)
         return force_update
 
     calendar = LaunchCalendar(
