@@ -534,3 +534,112 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
     logger.info(f"skipped_sku_ids: {json.dumps(skipped_sku_ids, ensure_ascii=False)}")
     logger.info(f"failed_sku_ids: {json.dumps(failed_sku_ids, ensure_ascii=False)}")
     return scanned, inserted, skipped, failed, skipped_sku_ids, failed_sku_ids
+
+
+async def crawl_jingtan_sku_details_from_id_list(
+    db: AsyncSession,
+    sku_ids: list[str],
+    commit_every: int = 20,
+    request_interval_seconds: Optional[float] = None,
+    on_progress: Optional[Callable[[int, int, int, int, int], Awaitable[None]]] = None,
+    on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
+) -> Tuple[int, int, int, int]:
+    """从指定的 sku_id 列表中，仅补齐详情表中不存在的记录。
+
+    Returns:
+        (total, inserted, skipped, failed)
+    """
+    op = settings.ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE
+    base_interval = (
+        float(request_interval_seconds)
+        if request_interval_seconds is not None
+        else max(1.2, float(settings.ANTFANS_REQUEST_DELAY or 0))
+    )
+
+    total = len(sku_ids)
+    scanned = 0
+    inserted = 0
+    skipped = 0
+    failed = 0
+
+    for sku_id in sku_ids:
+        scanned += 1
+
+        if await _sku_homepage_detail_exists(db, sku_id):
+            skipped += 1
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, total)
+            continue
+
+        payload = [{"source": "collectionPreview", "targetSkuId": sku_id}]
+        try:
+            resp = await antfans_client.post_mgw_safe(operation_type=op, payload_obj=payload)
+        except Exception as e:
+            failed += 1
+            err_msg = f"请求异常: {e}"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, str(e))
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, total)
+            continue
+
+        await asyncio.sleep(_throttle_delay(base_interval))
+        data = resp.get("json")
+        if resp.get("status") != 200 or not isinstance(data, dict) or data.get("bizStatusCode") != 10000:
+            failed += 1
+            err_msg = _extract_resp_error(resp, data if isinstance(data, dict) else None)
+            logger.warning(f"sku_id={sku_id} 请求失败: {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, total)
+            continue
+
+        if not isinstance(data.get("skuHomepageModel"), dict):
+            failed += 1
+            err_msg = "skuHomepageModel 缺失或类型异常"
+            logger.warning(f"sku_id={sku_id} 数据失败: {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, total)
+            continue
+
+        now = datetime.utcnow()
+        try:
+            success = await _upsert_sku_homepage_detail_and_try_sync_wiki(
+                db=db,
+                sku_id=sku_id,
+                data=data,
+                now=now,
+            )
+        except Exception as e:
+            failed += 1
+            err_msg = f"入库异常: {e}"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+            if on_progress:
+                await on_progress(scanned, inserted, skipped, failed, total)
+            continue
+
+        if success:
+            inserted += 1
+        else:
+            failed += 1
+            err_msg = "入库失败: 详情结构不完整"
+            logger.warning(f"sku_id={sku_id} {err_msg}")
+            if on_error:
+                await on_error(sku_id, err_msg)
+
+        if scanned % max(1, commit_every) == 0:
+            await db.commit()
+        if on_progress:
+            await on_progress(scanned, inserted, skipped, failed, total)
+
+    await db.commit()
+    logger.info(
+        f"SKU ID列表补齐完成: total={total} inserted={inserted} skipped={skipped} failed={failed}"
+    )
+    return total, inserted, skipped, failed

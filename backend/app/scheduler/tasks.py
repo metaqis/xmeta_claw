@@ -2,6 +2,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,6 +24,7 @@ from app.crawler.launch_detail_crawler import crawl_all_missing_details
 from app.crawler.jingtan_sku_homepage_detail_crawler import (
     crawl_jingtan_sku_homepage_details,
     crawl_jingtan_sku_homepage_details_desc_backfill,
+    crawl_jingtan_sku_details_from_id_list,
     get_detail_numeric_sku_id_bounds,
 )
 from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
@@ -283,6 +285,46 @@ async def task_crawl_jingtan_sku_details_descending_backfill(db, run_id: int):
     )
 
 
+_ID_LIST_FILE = Path(__file__).parent.parent.parent.parent / "third_goods_ids.txt"
+
+
+async def task_crawl_jingtan_sku_details_from_idlist(db, run_id: int):
+    logger.info("定时任务: 鲸探藏品详情(ID列表补齐)")
+
+    if not _ID_LIST_FILE.exists():
+        await _log_run(db, run_id, "error", f"ID列表文件不存在: {_ID_LIST_FILE}")
+        return
+
+    raw_ids = _ID_LIST_FILE.read_text(encoding="utf-8").splitlines()
+    sku_ids = list(dict.fromkeys(line.strip() for line in raw_ids if line.strip().isdigit()))
+    await _log_run(db, run_id, "info", f"读取 ID 列表: 共 {len(sku_ids)} 条（去重后）")
+
+    async def _on_progress(scanned: int, inserted: int, skipped: int, failed: int, total: int):
+        if scanned % 50 == 0 or scanned == total:
+            await _log_run(
+                db,
+                run_id,
+                "info",
+                f"ID列表补齐进度: {scanned}/{total} 入库 {inserted} 跳过 {skipped} 失败 {failed}",
+            )
+
+    async def _on_error(sku_id: str, error_msg: str):
+        await _log_run(db, run_id, "error", f"sku detail 失败: sku_id={sku_id} {error_msg}")
+
+    total, inserted, skipped, failed = await crawl_jingtan_sku_details_from_id_list(
+        db,
+        sku_ids=sku_ids,
+        on_progress=_on_progress,
+        on_error=_on_error,
+    )
+    await _log_run(
+        db,
+        run_id,
+        "info",
+        f"ID列表补齐完成: 总计 {total} 入库 {inserted} 跳过 {skipped} 失败 {failed}",
+    )
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "crawl_calendar": {
         "name": "今明日日历链路",
@@ -375,6 +417,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_interval_seconds": 24 * 60 * 60,
         "default_enabled": False,
         "func": task_crawl_jingtan_sku_details_descending_backfill,
+    },
+    "crawl_jingtan_sku_details_from_idlist": {
+        "name": "鲸探 SKU ID列表补齐",
+        "description": "从 third_goods_ids.txt 读取 sku_id，只补齐详情表中不存在的记录，并同步 wiki 表",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 24 * 60 * 60,
+        "default_enabled": False,
+        "func": task_crawl_jingtan_sku_details_from_idlist,
     },
 }
 
