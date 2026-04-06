@@ -319,10 +319,22 @@ async def crawl_jingtan_sku_homepage_details(
     on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
 ) -> Tuple[int, int, int]:
     op = settings.ANTFANS_OPERATION_TYPE_QUERY_SKU_HOMEPAGE
-    rows = await db.execute(select(JingtanSkuWiki.sku_id).order_by(JingtanSkuWiki.sku_id.asc()))
+    if only_missing:
+        # 一条 SQL 取出 wiki 中详情表里缺失的 sku_id，避免逐条主键查询
+        rows = await db.execute(
+            select(JingtanSkuWiki.sku_id)
+            .where(
+                ~JingtanSkuWiki.sku_id.in_(
+                    select(JingtanSkuHomepageDetail.sku_id)
+                )
+            )
+            .order_by(JingtanSkuWiki.sku_id.asc())
+        )
+    else:
+        rows = await db.execute(select(JingtanSkuWiki.sku_id).order_by(JingtanSkuWiki.sku_id.asc()))
     sku_ids = [row[0] for row in rows.all() if row[0]]
     if not sku_ids:
-        logger.info("SKU 详情爬取结束: 无可处理 sku")
+        logger.info("SKU 详情爬取结束: 无缺失 sku")
         return 0, 0, 0
 
     total = len(sku_ids)
@@ -332,11 +344,6 @@ async def crawl_jingtan_sku_homepage_details(
 
     for sku_id in sku_ids:
         processed += 1
-        if only_missing and await _sku_homepage_detail_exists(db, sku_id):
-            if on_progress:
-                await on_progress(processed, upserted, failed, total)
-            continue
-
         payload = [{"source": "collectionPreview", "targetSkuId": sku_id}]
         try:
             resp = await antfans_client.post_mgw_safe(operation_type=op, payload_obj=payload)
@@ -647,13 +654,14 @@ async def crawl_jingtan_sku_details_from_id_list(
 
 async def crawl_jingtan_sku_details_around_max_id(
     db: AsyncSession,
-    spread: int = 500,
+    spread_backward: int = 200,
+    spread_forward: int = 100,
     commit_every: int = 20,
     request_interval_seconds: Optional[float] = None,
     on_progress: Optional[Callable[[int, int, int, int, int], Awaitable[None]]] = None,
     on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
 ) -> Tuple[int, int, int, int]:
-    """围绕当前最大 sku_id 前后各 spread 个 ID，补齐缺失的详情记录。
+    """围绕当前最大 sku_id，向前（历史）spread_backward 个、向后（新增）spread_forward 个，补齐缺失的详情记录。
 
     Returns:
         (total, inserted, skipped, failed)
@@ -663,8 +671,8 @@ async def crawl_jingtan_sku_details_around_max_id(
         logger.info("SKU 详情表无记录，跳过邻域补齐")
         return 0, 0, 0, 0
 
-    lower = max(1, max_sku_id - spread)
-    upper = max_sku_id + spread
+    lower = max(1, max_sku_id - spread_backward)
+    upper = max_sku_id + spread_forward
     sku_ids = [str(i) for i in range(lower, upper + 1)]
     logger.info(f"SKU 邻域补齐: max_sku_id={max_sku_id} 范围 [{lower}, {upper}] 共 {len(sku_ids)} 个")
 

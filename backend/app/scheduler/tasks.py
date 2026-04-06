@@ -169,7 +169,8 @@ async def task_jingtan_detail_around_max(db, run_id: int):
 
     total, inserted, skipped, failed = await crawl_jingtan_sku_details_around_max_id(
         db,
-        spread=500,
+        spread_backward=200,
+        spread_forward=100,
         on_progress=_on_progress,
         on_error=_on_error,
     )
