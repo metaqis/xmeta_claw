@@ -32,7 +32,9 @@ def _extract_records(resp: dict) -> Tuple[list[dict], Optional[int]]:
     return [], None
 
 
-async def crawl_calendar_for_date_stats(db: AsyncSession, date_str: str) -> Tuple[int, int]:
+async def crawl_calendar_for_date_stats(
+    db: AsyncSession, date_str: str, force_update: bool = False
+) -> Tuple[int, int]:
     page = 1
     page_size = 50
     inserted = 0
@@ -52,7 +54,7 @@ async def crawl_calendar_for_date_stats(db: AsyncSession, date_str: str) -> Tupl
 
         fetched += len(records)
         for item in records:
-            did_insert = await _upsert_calendar_from_list_item(db, item)
+            did_insert = await _upsert_calendar_from_list_item(db, item, force_update=force_update)
             if did_insert:
                 inserted += 1
 
@@ -67,16 +69,18 @@ async def crawl_calendar_for_date_stats(db: AsyncSession, date_str: str) -> Tupl
         page += 1
 
     await db.commit()
-    logger.info(f"日历 {date_str}: 新增 {inserted} 条")
+    logger.info(f"日历 {date_str}: 新增/更新 {inserted} 条")
     return fetched, inserted
 
 
-async def crawl_calendar_for_date(db: AsyncSession, date_str: str) -> int:
-    _, inserted = await crawl_calendar_for_date_stats(db, date_str)
+async def crawl_calendar_for_date(db: AsyncSession, date_str: str, force_update: bool = False) -> int:
+    _, inserted = await crawl_calendar_for_date_stats(db, date_str, force_update=force_update)
     return inserted
 
 
-async def _upsert_calendar_from_list_item(db: AsyncSession, item: dict) -> bool:
+async def _upsert_calendar_from_list_item(
+    db: AsyncSession, item: dict, force_update: bool = False
+) -> bool:
     source_id = str(item.get("id") or "")
     if not source_id:
         return False
@@ -93,8 +97,16 @@ async def _upsert_calendar_from_list_item(db: AsyncSession, item: dict) -> bool:
             existing.platform_id = platform_id
         if existing.ip_id is None and ip_id is not None:
             existing.ip_id = ip_id
-        await save_launch_detail(db, existing.id, source_id, skip_existing=True)
-        return False
+        if force_update:
+            existing.name = item.get("name") or ""
+            existing.sell_time = _parse_datetime(item.get("sellTime"))
+            existing.price = item.get("amount")
+            existing.count = item.get("count")
+            existing.img = item.get("img")
+            existing.priority_purchase_num = item.get("priorityPurchaseNum") or 0
+            existing.is_priority_purchase = bool(item.get("isPriorityPurchase"))
+        await save_launch_detail(db, existing.id, source_id, skip_existing=not force_update)
+        return force_update
 
     calendar = LaunchCalendar(
         name=item.get("name") or "",
@@ -119,6 +131,7 @@ async def crawl_calendar_range(
     start_date: str,
     end_date: str,
     on_day_done: Callable[[str, int], Awaitable[None]] | None = None,
+    force_update: bool = False,
 ):
     start = datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.strptime(end_date, "%Y-%m-%d")
@@ -127,13 +140,13 @@ async def crawl_calendar_range(
 
     while current <= end:
         date_str = current.strftime("%Y-%m-%d")
-        count = await crawl_calendar_for_date(db, date_str)
+        _, count = await crawl_calendar_for_date_stats(db, date_str, force_update=force_update)
         total += count
         if on_day_done is not None:
             await on_day_done(date_str, count)
         current += timedelta(days=1)
 
-    logger.info(f"日历范围爬取完成: {start_date} ~ {end_date}, 共新增 {total} 条")
+    logger.info(f"日历范围爬取完成: {start_date} ~ {end_date}, 共新增/更新 {total} 条")
     return total
 
 

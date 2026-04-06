@@ -643,3 +643,36 @@ async def crawl_jingtan_sku_details_from_id_list(
         f"SKU ID列表补齐完成: total={total} inserted={inserted} skipped={skipped} failed={failed}"
     )
     return total, inserted, skipped, failed
+
+
+async def crawl_jingtan_sku_details_around_max_id(
+    db: AsyncSession,
+    spread: int = 500,
+    commit_every: int = 20,
+    request_interval_seconds: Optional[float] = None,
+    on_progress: Optional[Callable[[int, int, int, int, int], Awaitable[None]]] = None,
+    on_error: Optional[Callable[[str, str], Awaitable[None]]] = None,
+) -> Tuple[int, int, int, int]:
+    """围绕当前最大 sku_id 前后各 spread 个 ID，补齐缺失的详情记录。
+
+    Returns:
+        (total, inserted, skipped, failed)
+    """
+    max_sku_id, _ = await get_detail_numeric_sku_id_bounds(db)
+    if max_sku_id is None:
+        logger.info("SKU 详情表无记录，跳过邻域补齐")
+        return 0, 0, 0, 0
+
+    lower = max(1, max_sku_id - spread)
+    upper = max_sku_id + spread
+    sku_ids = [str(i) for i in range(lower, upper + 1)]
+    logger.info(f"SKU 邻域补齐: max_sku_id={max_sku_id} 范围 [{lower}, {upper}] 共 {len(sku_ids)} 个")
+
+    return await crawl_jingtan_sku_details_from_id_list(
+        db,
+        sku_ids=sku_ids,
+        commit_every=commit_every,
+        request_interval_seconds=request_interval_seconds,
+        on_progress=on_progress,
+        on_error=on_error,
+    )
