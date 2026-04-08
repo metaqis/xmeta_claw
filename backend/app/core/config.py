@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"
 
+    # 微信公众号（文章自动发布）
+    WECHAT_APP_ID: str = ""
+    WECHAT_APP_SECRET: str = ""
+
     class Config:
         env_file = ".env"
 
