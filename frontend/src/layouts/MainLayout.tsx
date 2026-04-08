@@ -12,6 +12,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   RobotOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../store/auth'
 
@@ -25,6 +26,7 @@ const menuItems = [
   { key: '/jingtan-sku-wiki', icon: <DatabaseOutlined />, label: '鲸探藏品库' },
   { key: '/ips', icon: <TeamOutlined />, label: 'IP库' },
   { key: '/tasks', icon: <SettingOutlined />, label: '任务管理' },
+  { key: '/articles', icon: <FileTextOutlined />, label: '文章管理' },
   { key: '/agent', icon: <RobotOutlined />, label: 'AI助手' },
 ]
 

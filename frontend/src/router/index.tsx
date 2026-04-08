@@ -11,6 +11,8 @@ import IPArchivesPage from '../pages/ips/Archives'
 import TasksPage from '../pages/tasks'
 import AgentPage from '../pages/agent'
 import JingtanSkuWikiPage from '../pages/jingtanSkuWiki'
+import ArticlesPage from '../pages/articles'
+import ArticlePreviewPage from '../pages/articles/Preview'
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -32,6 +34,8 @@ export const routes: RouteObject[] = [
       { path: 'tasks', element: <TasksPage /> },
       { path: 'agent', element: <AgentPage /> },
       { path: 'jingtan-sku-wiki', element: <JingtanSkuWikiPage /> },
+      { path: 'articles', element: <ArticlesPage /> },
+      { path: 'articles/:id', element: <ArticlePreviewPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> },

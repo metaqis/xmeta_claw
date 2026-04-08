@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     AGENT_MAX_HISTORY: int = 20
     AGENT_MAX_TOOL_ROUNDS: int = 6
 
+    # WeChat Mini Program (微信小程序，已有配置)
+    APP_ID: str = ""
+    APP_SECRET: str = ""
+
+    # WeChat MP (微信公众号)
+    WECHAT_APP_ID: str = ""
+    WECHAT_APP_SECRET: str = ""
+
     # Admin
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"

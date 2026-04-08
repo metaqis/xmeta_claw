@@ -23,6 +23,7 @@ from app.crawler.jingtan_sku_homepage_detail_crawler import (
     crawl_jingtan_sku_details_around_max_id,
 )
 from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
+from app.article.service import generate_article
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
 from app.services.plane_importer import import_planes_to_db
@@ -180,6 +181,31 @@ async def task_jingtan_detail_around_max(db, run_id: int):
     )
 
 
+async def task_article_daily(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始生成每日文章")
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    article = await generate_article(db, "daily", today)
+    await _log_run(db, run_id, "info", f"每日文章生成完成: id={article.id} title={article.title}")
+
+
+async def task_article_weekly(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始生成每周文章")
+    article = await generate_article(db, "weekly")
+    await _log_run(db, run_id, "info", f"每周文章生成完成: id={article.id} title={article.title}")
+
+
+async def task_article_monthly(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始生成每月文章")
+    now = datetime.utcnow()
+    # 生成上个月的月报
+    if now.month == 1:
+        y, m = now.year - 1, 12
+    else:
+        y, m = now.year, now.month - 1
+    article = await generate_article(db, "monthly", f"{y}-{m:02d}-01")
+    await _log_run(db, run_id, "info", f"每月文章生成完成: id={article.id} title={article.title}")
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "today_calendar_update": {
         "name": "今日日历强制更新",
@@ -236,6 +262,30 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_schedule_type": "interval",
         "default_interval_seconds": 48 * 60 * 60,
         "func": task_jingtan_detail_around_max,
+    },
+    "article_daily": {
+        "name": "每日文章自动生成",
+        "description": "每天自动生成数藏日报文章（基于当日发行日历数据）",
+        "default_schedule_type": "cron",
+        "default_cron": "0 21 * * *",
+        "default_enabled": False,
+        "func": task_article_daily,
+    },
+    "article_weekly": {
+        "name": "每周文章自动生成",
+        "description": "每周一自动生成数藏周报（基于过去一周数据）",
+        "default_schedule_type": "cron",
+        "default_cron": "0 10 * * 1",
+        "default_enabled": False,
+        "func": task_article_weekly,
+    },
+    "article_monthly": {
+        "name": "每月文章自动生成",
+        "description": "每月1日自动生成数藏月报（基于上一个月数据）",
+        "default_schedule_type": "cron",
+        "default_cron": "0 10 1 * *",
+        "default_enabled": False,
+        "func": task_article_monthly,
     },
 }
 

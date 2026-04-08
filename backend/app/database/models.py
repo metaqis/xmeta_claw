@@ -270,3 +270,41 @@ class ChatMessage(Base):
     __table_args__ = (
         Index("ix_chat_messages_session_created", "session_id", "created_at"),
     )
+
+
+class Article(Base):
+    """自动生成的微信公众号文章"""
+    __tablename__ = "articles"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    title = Column(String(300), nullable=False)
+    article_type = Column(String(20), nullable=False, index=True)  # daily / weekly / monthly
+    data_date = Column(String(50), index=True)
+    summary = Column(String(500))
+    content_html = Column(Text)
+    content_markdown = Column(Text)
+    cover_image_url = Column(String(500))
+    analysis_data = Column(Text)  # raw analysis data JSON
+    status = Column(String(20), nullable=False, default="draft", index=True)  # generating/draft/publishing/published/failed
+    wechat_media_id = Column(String(200))
+    wechat_publish_id = Column(String(200))
+    error_message = Column(Text)
+    published_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    images = relationship("ArticleImage", back_populates="article", cascade="all, delete-orphan")
+
+
+class ArticleImage(Base):
+    """文章配图（图表 / 封面）"""
+    __tablename__ = "article_images"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    article_id = Column(BigInteger, ForeignKey("articles.id", ondelete="CASCADE"), nullable=False, index=True)
+    image_type = Column(String(50))  # cover / daily_trend / platform_pie / ...
+    file_path = Column(String(500))
+    wechat_media_url = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    article = relationship("Article", back_populates="images")
