@@ -9,11 +9,9 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import Article, ArticleImage
-from app.article.data_analyzer import get_daily_data, get_weekly_data, get_monthly_data
-from app.article.chart_generator import (
-    generate_daily_charts, generate_weekly_charts, generate_monthly_charts,
-)
-from app.article.article_generator import generate_article_content, markdown_to_wechat_html
+from app.article.llm import generate_article_content
+from app.article.renderer import markdown_to_wechat_html
+from app.article.reports import get_skill
 from app.article.wechat_client import wechat_client
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
@@ -36,30 +34,35 @@ async def generate_article(
     article_type: daily / weekly / monthly
     """
     now = datetime.utcnow()
+    skill = get_skill(article_type)
 
     # 1) 获取分析数据
     if article_type == "daily":
-        date_str = target_date or now.strftime("%Y-%m-%d")
-        data = await get_daily_data(db, date_str)
-        data_date = date_str
+        kw = {"target_date": target_date or now.strftime("%Y-%m-%d")}
     elif article_type == "weekly":
-        data = await get_weekly_data(db, target_date)
-        data_date = f"{data['start_date']}~{data['end_date']}"
+        kw = {"end_date": target_date}
     elif article_type == "monthly":
         if target_date:
             y, m = int(target_date[:4]), int(target_date[5:7])
         else:
             y, m = now.year, now.month
-        data = await get_monthly_data(db, y, m)
-        data_date = data["month_label"]
+        kw = {"year": y, "month": m}
     else:
         raise ValueError(f"未知文章类型: {article_type}")
+
+    data = await skill.get_data(db, **kw)
+    data_date = (
+        data.get("date")
+        or f"{data.get('start_date','')}"
+           f"{'~' + data['end_date'] if data.get('end_date') else ''}"
+        or data.get("month_label", "")
+    )
 
     logger.info(f"文章数据分析完成: type={article_type}, data_date={data_date}")
 
     # 2) 先创建 article 记录以获取 ID
     article = Article(
-        title=f"生成中...",
+        title="生成中...",
         article_type=article_type,
         data_date=data_date,
         status="generating",
@@ -71,12 +74,7 @@ async def generate_article(
 
     try:
         # 3) 生成图表
-        if article_type == "daily":
-            charts = generate_daily_charts(data, output_dir)
-        elif article_type == "weekly":
-            charts = generate_weekly_charts(data, output_dir)
-        else:
-            charts = generate_monthly_charts(data, output_dir)
+        charts = skill.generate_charts(data, output_dir)
 
         logger.info(f"图表生成完成: {list(charts.keys())}")
 

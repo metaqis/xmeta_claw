@@ -45,3 +45,5 @@ htmlcov/
 tmpclaude-*
 nul
 tsconfig.tsbuildinfo
+backend/static/
+backend/scripts/
