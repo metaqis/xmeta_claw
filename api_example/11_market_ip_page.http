@@ -7,22 +7,8 @@
 ### 获取 IP 方热榜成交量情况
 POST {{baseUrl}}/h5/market/ipPage
 Content-Type: application/json
+{"timeType":0,"pageNum":1,"pageSize":50,"platformIdList":[],"communityIpIdList":[],"isAllPlatform":null,"isAllCommunityIp":null,"minPrice":null,"maxPrice":null,"beginTime":null,"endTime":null,"searchName":"","planeCode":null}
 
-{
-  "timeType": 0,
-  "pageNum": 1,
-  "pageSize": 50,
-  "platformIdList": [],
-  "communityIpIdList": [],
-  "isAllPlatform": null,
-  "isAllCommunityIp": null,
-  "minPrice": null,
-  "maxPrice": null,
-  "beginTime": null,
-  "endTime": null,
-  "searchName": "",
-  "planeCode": null
-}
 
 ### 完整响应样本
 # 见: 11_market_ip_page.response.json

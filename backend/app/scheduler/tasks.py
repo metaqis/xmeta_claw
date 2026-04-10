@@ -23,6 +23,7 @@ from app.crawler.jingtan_sku_homepage_detail_crawler import (
     crawl_jingtan_sku_details_around_max_id,
 )
 from app.crawler.jingtan_sku_wiki_crawler import crawl_jingtan_sku_wiki
+from app.crawler.market_snapshot_crawler import run_market_snapshot
 from app.article.service import generate_article
 from app.database.db import async_session
 from app.database.models import TaskConfig, TaskRun, TaskRunLog
@@ -206,6 +207,19 @@ async def task_article_monthly(db, run_id: int):
     await _log_run(db, run_id, "info", f"每月文章生成完成: id={article.id} title={article.title}")
 
 
+async def task_market_snapshot(db, run_id: int):
+    await _log_run(db, run_id, "info", "开始市场快照抓取 (板块/IP/热门藏品)")
+
+    async def _on_log(msg: str):
+        await _log_run(db, run_id, "info", msg)
+
+    result = await run_market_snapshot(db, on_log=_on_log)
+    await _log_run(
+        db, run_id, "info",
+        f"市场快照完成: 板块={result['plane_count']} IP={result['ip_count']} 藏品={result['archive_count']}",
+    )
+
+
 TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     "today_calendar_update": {
         "name": "今日日历强制更新",
@@ -286,6 +300,14 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_cron": "0 10 1 * *",
         "default_enabled": False,
         "func": task_article_monthly,
+    },
+    "market_snapshot_daily": {
+        "name": "市场每日快照",
+        "description": "每天 23:50 抓取板块统计、IP 排行、热门藏品数据，写入快照表供日报分析使用",
+        "default_schedule_type": "cron",
+        "default_cron": "50 23 * * *",
+        "default_enabled": True,
+        "func": task_market_snapshot,
     },
 }
 

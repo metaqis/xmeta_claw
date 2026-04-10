@@ -13,6 +13,7 @@ import AgentPage from '../pages/agent'
 import JingtanSkuWikiPage from '../pages/jingtanSkuWiki'
 import ArticlesPage from '../pages/articles'
 import ArticlePreviewPage from '../pages/articles/Preview'
+import MarketStatsPage from '../pages/marketStats'
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -36,6 +37,7 @@ export const routes: RouteObject[] = [
       { path: 'jingtan-sku-wiki', element: <JingtanSkuWikiPage /> },
       { path: 'articles', element: <ArticlesPage /> },
       { path: 'articles/:id', element: <ArticlePreviewPage /> },
+      { path: 'market-stats', element: <MarketStatsPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> },

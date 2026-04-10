@@ -13,6 +13,7 @@ from app.core.security import get_password_hash
 from app.database.db import init_db, async_session
 from app.database.models import User
 from app.api import auth, calendar, archives, ips, stats, crawler, tasks, agent, jingtan, articles
+from app.api import market_stats
 from app.scheduler.tasks import start_scheduler, stop_scheduler
 from app.crawler.client import crawler_client
 from app.crawler.antfans_client import antfans_client
@@ -78,6 +79,7 @@ app.include_router(archives.router)
 app.include_router(ips.router)
 app.include_router(stats.router)
 app.include_router(crawler.router)
+app.include_router(market_stats.router)
 app.include_router(tasks.router)
 app.include_router(agent.router)
 app.include_router(jingtan.router)

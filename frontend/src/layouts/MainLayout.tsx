@@ -13,6 +13,7 @@ import {
   LogoutOutlined,
   RobotOutlined,
   FileTextOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../store/auth'
 
@@ -27,6 +28,7 @@ const menuItems = [
   { key: '/ips', icon: <TeamOutlined />, label: 'IP库' },
   { key: '/tasks', icon: <SettingOutlined />, label: '任务管理' },
   { key: '/articles', icon: <FileTextOutlined />, label: '文章管理' },
+  { key: '/market-stats', icon: <BarChartOutlined />, label: '市场行情' },
   { key: '/agent', icon: <RobotOutlined />, label: 'AI助手' },
 ]
 

@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, BigInteger, Index
+    Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, BigInteger, Index,
+    Date, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from app.database.db import Base
@@ -308,3 +309,155 @@ class ArticleImage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     article = relationship("Article", back_populates="images")
+
+
+class MarketDailySummary(Base):
+    """市场每日全局汇总快照"""
+    __tablename__ = "market_daily_summaries"
+
+    stat_date = Column(Date, primary_key=True)          # 统计日期 (YYYY-MM-DD)
+    total_deal_count = Column(Integer)                  # 全市场总成交笔数
+    total_market_value = Column(Float)                  # 全市场总市值
+    total_deal_amount = Column(Float)                   # 全市场总成交额
+    active_plane_count = Column(Integer)                # 有成交的板块数
+    top_plane_name = Column(String(100))                # 成交量最高板块
+    top_plane_deal_count = Column(Integer)              # 最高板块成交量
+    top_ip_name = Column(String(200))                   # 成交量最高 IP
+    top_ip_deal_count = Column(Integer)                 # 最高 IP 成交量
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MarketPlaneSnapshot(Base):
+    """板块每日市场快照"""
+    __tablename__ = "market_plane_snapshots"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    stat_date = Column(Date, nullable=False)
+    plane_source_id = Column(Integer)                   # planes.source_id (xmeta内部id)
+    plane_code = Column(String(50), nullable=False)     # 板块编码
+    plane_name = Column(String(100), nullable=False)    # 板块名称
+    avg_price = Column(Float)                           # 均价日涨跌幅 %
+    deal_price = Column(Float)                          # 最新成交价
+    deal_count = Column(Integer)                        # 今日成交量
+    shelves_rate = Column(Float)                        # 挂售率
+    total_market_value = Column(Float)                  # 总市值
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stat_date", "plane_code", name="uq_plane_snapshot_date_code"),
+        Index("ix_plane_snapshot_date", "stat_date"),
+    )
+
+
+class MarketIPSnapshot(Base):
+    """IP 方每日市场快照（取接口返回的 Top N）"""
+    __tablename__ = "market_ip_snapshots"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    stat_date = Column(Date, nullable=False)
+    community_ip_id = Column(Integer, nullable=False)   # xmeta communityIpId
+    name = Column(String(200), nullable=False)
+    avatar = Column(String(500))
+    rank = Column(Integer)                              # 榜单排名 (1-based)
+    archive_count = Column(Integer)                     # 藏品数量
+    market_amount = Column(Float)                       # 总市值
+    market_amount_rate = Column(Float)                  # 总市值日涨跌幅 %
+    hot = Column(Float)                                 # 热度指数
+    hot_rate = Column(Float)                            # 热度变化 %
+    avg_amount = Column(Float)                          # 均价
+    avg_amount_rate = Column(Float)                     # 均价变化 %
+    deal_count = Column(Integer)                        # 成交量
+    deal_count_rate = Column(Float)                     # 成交量变化 %
+    publish_count = Column(Integer)                     # 总发行量
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stat_date", "community_ip_id", name="uq_ip_snapshot_date_ip"),
+        Index("ix_ip_snapshot_date", "stat_date"),
+    )
+
+
+class MarketArchiveSnapshot(Base):
+    """热门藏品每日排名快照（按行情分类）"""
+    __tablename__ = "market_archive_snapshots"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    stat_date = Column(Date, nullable=False)
+    top_code = Column(String(50), nullable=False)       # 分类编码 (e.g. "759475")
+    top_name = Column(String(100), nullable=False)      # 分类名称 (e.g. "鲸探50")
+    rank = Column(Integer, nullable=False)              # 排名 (1-based)
+    archive_id = Column(Integer, nullable=False)
+    archive_name = Column(String(300))
+    archive_img = Column(String(500))
+    selling_count = Column(Integer)                     # 在售数量
+    deal_count = Column(Integer)                        # 成交量
+    market_amount = Column(Float)                       # 总市值
+    market_amount_rate = Column(Float)                  # 市值日涨跌 %
+    min_amount = Column(Float)                          # 最低价
+    min_amount_rate = Column(Float)                     # 最低价变化 %
+    avg_amount = Column(Float)                          # 均价
+    avg_amount_rate = Column(Float)                     # 均价变化 %
+    up_rate = Column(Float)                             # 上架率
+    deal_amount = Column(Float)                         # 成交额
+    deal_amount_rate = Column(Float)                    # 成交额变化 %
+    publish_count = Column(Integer)                     # 发行量
+    platform_id = Column(Integer)
+    is_transfer = Column(Boolean)                       # 是否可转让
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "stat_date", "top_code", "archive_id",
+            name="uq_archive_snapshot_date_code_id",
+        ),
+        Index("ix_archive_snapshot_date_code", "stat_date", "top_code"),
+    )
+
+
+class MarketPlaneCensus(Base):
+    """板块每日成交详细统计（涨跌分布）— 来自 /h5/market/censusPlaneArchive"""
+    __tablename__ = "market_plane_census"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    stat_date = Column(Date, nullable=False)
+    plane_code = Column(String(50), nullable=False)     # 板块编码
+    plane_name = Column(String(100))                    # 板块名称
+    total_market_amount = Column(Float)                 # 总市值
+    total_market_amount_rate = Column(Float)            # 总市值日涨跌幅 %
+    total_deal_count = Column(Integer)                  # 今日成交量
+    total_deal_count_rate = Column(Float)               # 成交量日变化 %
+    total_archive_count = Column(Integer)               # 板块藏品总数
+    up_archive_count = Column(Integer)                  # 今日上涨藏品数
+    down_archive_count = Column(Integer)                # 今日下跌藏品数
+    up_down_json = Column(Text)                         # upDownList JSON 字符串
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stat_date", "plane_code", name="uq_plane_census_date_code"),
+        Index("ix_plane_census_date", "stat_date"),
+    )
+
+
+class MarketTopCensus(Base):
+    """行情分类每日成交详细统计（涨跌分布）— 来自 /h5/market/censusArchiveTop"""
+    __tablename__ = "market_top_census"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    stat_date = Column(Date, nullable=False)
+    top_code = Column(String(50), nullable=False)       # 分类编码
+    top_name = Column(String(100))                      # 分类名称
+    total_market_amount = Column(Float)                 # 总市值
+    total_market_amount_rate = Column(Float)            # 总市值日涨跌幅 %
+    total_deal_count = Column(Integer)                  # 今日成交量
+    total_deal_count_rate = Column(Float)               # 成交量日变化 %
+    total_archive_count = Column(Integer)               # 分类藏品总数
+    up_archive_count = Column(Integer)                  # 今日上涨藏品数
+    down_archive_count = Column(Integer)                # 今日下跌藏品数
+    up_down_json = Column(Text)                         # upDownList JSON 字符串
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stat_date", "top_code", name="uq_top_census_date_code"),
+        Index("ix_top_census_date", "stat_date"),
+    )

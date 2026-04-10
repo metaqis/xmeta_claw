@@ -107,11 +107,11 @@ export default function ArticlePreviewPage() {
   return (
     <div>
       {/* 顶部操作栏 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/articles')}>
           返回列表
         </Button>
-        <Space>
+        <Space wrap size={[8, 8]}>
           {article.status === 'draft' && (
             <>
               <Button icon={<EditOutlined />} onClick={openEdit}>
@@ -196,7 +196,7 @@ export default function ArticlePreviewPage() {
         {previewMode === 'html' ? (
           <div
             dangerouslySetInnerHTML={{ __html: article.content_html || '<p>暂无内容</p>' }}
-            style={{ lineHeight: 1.8 }}
+            style={{ lineHeight: 1.8, overflowX: 'auto', wordBreak: 'break-word' }}
             className="article-html-preview"
           />
         ) : (
@@ -222,7 +222,8 @@ export default function ArticlePreviewPage() {
       <Modal
         title="编辑文章"
         open={editOpen}
-        width={800}
+        width={700}
+        style={{ maxWidth: '95vw' }}
         onCancel={() => setEditOpen(false)}
         onOk={() =>
           updateMutation.mutate({

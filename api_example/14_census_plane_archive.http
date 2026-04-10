@@ -1,0 +1,56 @@
+# 接口名称: 版块成交详细统计
+# 说明: 根据 `planeCode` 查询某个版块的成交统计数据，包含总市值、成交量、涨跌分布等。
+
+@baseUrl = https://api.x-metash.cn
+
+### 版块成交详细统计
+POST {{baseUrl}}/h5/market/censusPlaneArchive
+Content-Type: application/json
+
+{
+  "timeType": 0,
+  "planeCode": "00000004"
+}
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": {
+#     "totalMarketAmount": 684495273.05,
+#     "totalMarketAmountRate": -0.6000,
+#     "totalDealCount": 205,
+#     "totalDealCountRate": 8.4900,
+#     "totalArchiveCount": 9969,
+#     "upArchiveCount": 56,
+#     "downArchiveCount": 204,
+#     "upDownList": [
+#       { "label": "0-3",  "count": 14, "type": 1 },
+#       { "label": "3-5",  "count": 6,  "type": 1 },
+#       { "label": "5-7",  "count": 4,  "type": 1 },
+#       { "label": "7-10", "count": 7,  "type": 1 },
+#       { "label": ">10%", "count": 25, "type": 1 },
+#       { "label": "0-3",  "count": 76, "type": 2 },
+#       { "label": "3-5",  "count": 30, "type": 2 },
+#       { "label": "5-7",  "count": 20, "type": 2 },
+#       { "label": "7-10", "count": 20, "type": 2 },
+#       { "label": ">10%", "count": 58, "type": 2 }
+#     ]
+#   }
+# }
+
+# 字段说明:
+# timeType            — 时间类型，0=今日
+# planeCode           — 版块编码（来自 07_plane_list_new 接口的 code 字段）
+# totalMarketAmount   — 总市值（元）
+# totalMarketAmountRate — 总市值涨跌幅（%）
+# totalDealCount      — 今日成交数量
+# totalDealCountRate  — 成交量涨跌幅（%）
+# totalArchiveCount   — 版块内藏品总数
+# upArchiveCount      — 今日上涨藏品数
+# downArchiveCount    — 今日下跌藏品数
+# upDownList          — 涨跌分布列表
+#   type=1 为上涨（涨幅区间）
+#   type=2 为下跌（跌幅区间）
+#   label  — 区间标签，如 "0-3"、"3-5"、"5-7"、"7-10"、">10%"
+#   count  — 该区间内藏品数量

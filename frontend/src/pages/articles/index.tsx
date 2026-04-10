@@ -171,13 +171,13 @@ export default function ArticlesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>文章管理</Title>
-        <Space>
+        <Space wrap size={[8, 8]}>
           <Select
             allowClear
             placeholder="文章类型"
-            style={{ width: 120 }}
+            style={{ width: 110 }}
             value={typeFilter}
             onChange={setTypeFilter}
             options={[
@@ -190,7 +190,7 @@ export default function ArticlesPage() {
           <Select
             allowClear
             placeholder="状态"
-            style={{ width: 100 }}
+            style={{ width: 90 }}
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
@@ -214,12 +214,14 @@ export default function ArticlesPage() {
         columns={columns}
         dataSource={data?.items || []}
         loading={isLoading}
+        scroll={{ x: 680 }}
         pagination={{
           current: page,
           pageSize: 15,
           total: data?.total || 0,
           showTotal: (t) => `共 ${t} 篇`,
           onChange: setPage,
+          simple: true,
         }}
       />
 

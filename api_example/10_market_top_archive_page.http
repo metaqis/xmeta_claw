@@ -8,12 +8,8 @@
 POST {{baseUrl}}/h5/market/topArchivePage
 Content-Type: application/json
 
-{
-  "timeType": 0,
-  "pageNum": 1,
-  "pageSize": 50,
-  "topCode": "759475"
-}
+{"timeType":0,"pageNum":1,"pageSize":50,"platformIdList":[],"communityIpIdList":[],"isAllPlatform":null,"isAllCommunityIp":null,"minPrice":null,"maxPrice":null,"beginTime":null,"endTime":null,"searchName":"","planeCode":null,"topCode":"759475"}
+
 
 ### 带完整筛选字段的请求样本
 POST {{baseUrl}}/h5/market/topArchivePage
