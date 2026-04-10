@@ -5,6 +5,10 @@ from app.article.charts import (
     chart_value_trend,
     generate_launch_grid,
     generate_cover,
+    chart_market_overview,
+    chart_plane_census,
+    chart_top_archives,
+    chart_plane_deal_rank,
 )
 
 
@@ -37,5 +41,28 @@ def generate_daily_charts(data: dict, output_dir: str) -> dict[str, str]:
     )
     if p:
         charts["cover"] = p
+
+    # ── 行情图表 ──────────────────────────────────────────────
+    market = data.get("market_analysis") or {}
+    if market.get("has_data"):
+        p = chart_market_overview(
+            market.get("yesterday"),
+            market.get("day_before"),
+            output_dir,
+        )
+        if p:
+            charts["market_overview"] = p
+
+        p = chart_plane_deal_rank(market.get("top_planes", []), output_dir)
+        if p:
+            charts["plane_deal_rank"] = p
+
+        p = chart_plane_census(market.get("plane_census", []), output_dir)
+        if p:
+            charts["plane_census"] = p
+
+        p = chart_top_archives(market.get("top_archives", []), output_dir)
+        if p:
+            charts["top_archives"] = p
 
     return charts
