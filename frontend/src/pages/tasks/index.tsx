@@ -21,7 +21,7 @@ import {
 } from 'antd'
 import { EditOutlined, HistoryOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { tasksApi, TaskItem, TaskRunItem, TaskRunLogItem } from '../../api/tasks'
+import { tasksApi, TaskItem, TaskRunItem, TaskRunLogItem, ParamSchema } from '../../api/tasks'
 import { useAuthStore } from '../../store/auth'
 
 const { Text } = Typography
@@ -68,6 +68,8 @@ export default function TasksPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<TaskItem | null>(null)
+  const [runParamsOpen, setRunParamsOpen] = useState(false)
+  const [paramsTask, setParamsTask] = useState<TaskItem | null>(null)
   const [runsOpen, setRunsOpen] = useState(false)
   const [runsTask, setRunsTask] = useState<TaskItem | null>(null)
   const [runsPage, setRunsPage] = useState(1)
@@ -78,6 +80,7 @@ export default function TasksPage() {
   const [logsPageSize, setLogsPageSize] = useState(200)
 
   const [form] = Form.useForm()
+  const [runForm] = Form.useForm()
   const scheduleType = Form.useWatch('schedule_type', form)
 
   const { data, isFetching, refetch } = useQuery({
@@ -98,13 +101,26 @@ export default function TasksPage() {
   })
 
   const runMutation = useMutation({
-    mutationFn: (taskId: string) => tasksApi.run(taskId),
+    mutationFn: ({ taskId, params }: { taskId: string; params?: Record<string, unknown> }) =>
+      tasksApi.run(taskId, params),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: ['tasks'] })
       message.success(`已触发，run_id=${res.run_id}`)
     },
     onError: (e: any) => message.error(e?.response?.data?.detail || '触发失败'),
   })
+
+  const handleRunClick = (t: TaskItem) => {
+    if (t.params_schema && t.params_schema.length > 0) {
+      setParamsTask(t)
+      const defaults: Record<string, unknown> = {}
+      t.params_schema.forEach((p: ParamSchema) => { defaults[p.key] = p.default })
+      runForm.setFieldsValue(defaults)
+      setRunParamsOpen(true)
+    } else {
+      runMutation.mutate({ taskId: t.task_id })
+    }
+  }
 
   const runsQueryEnabled = runsOpen && !!runsTask
   const runsQueryKey = useMemo(
@@ -181,7 +197,7 @@ export default function TasksPage() {
         size={compact && !isMobile ? 'small' : 'middle'}
         icon={<PlayCircleOutlined />}
         disabled={!isAdmin || runMutation.isPending}
-        onClick={() => runMutation.mutate(t.task_id)}
+        onClick={() => handleRunClick(t)}
       >
         运行
       </Button>
@@ -730,6 +746,46 @@ export default function TasksPage() {
           />
         )}
       </Drawer>
+
+      <Modal
+        title={`运行参数：${paramsTask?.name || ''}`}
+        open={runParamsOpen}
+        onCancel={() => { setRunParamsOpen(false); runForm.resetFields() }}
+        width={isMobile ? 'calc(100vw - 24px)' : 440}
+        centered={isMobile}
+        okText="确认运行"
+        onOk={async () => {
+          if (!paramsTask) return
+          const values = await runForm.validateFields()
+          runMutation.mutate({ taskId: paramsTask.task_id, params: values })
+          setRunParamsOpen(false)
+          runForm.resetFields()
+        }}
+        destroyOnClose
+      >
+        <Form form={runForm} layout="vertical" preserve={false}>
+          {(paramsTask?.params_schema ?? []).map((p: ParamSchema) => (
+            <Form.Item
+              key={p.key}
+              label={p.label}
+              name={p.key}
+              initialValue={p.default}
+              rules={[{ required: true, message: `请输入${p.label}` }]}
+            >
+              {p.type === 'int' || p.type === 'float' ? (
+                <InputNumber
+                  min={p.min}
+                  max={p.max}
+                  precision={p.type === 'float' ? 2 : 0}
+                  style={{ width: '100%' }}
+                />
+              ) : (
+                <Input />
+              )}
+            </Form.Item>
+          ))}
+        </Form>
+      </Modal>
     </div>
   )
 }

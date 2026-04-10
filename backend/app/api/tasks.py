@@ -47,6 +47,7 @@ class TaskItem(BaseModel):
     cron: Optional[str] = None
     next_run_time: Optional[datetime] = None
     last_run: Optional[TaskRunItem] = None
+    params_schema: Optional[list] = None
 
     class Config:
         from_attributes = True
@@ -71,6 +72,10 @@ class TaskUpdateResponse(BaseModel):
 class TaskRunResponse(BaseModel):
     message: str
     run_id: int
+
+
+class TaskRunRequest(BaseModel):
+    params: Optional[dict] = None
 
 
 class TaskCancelResponse(BaseModel):
@@ -137,6 +142,7 @@ async def list_tasks(
                 cron=cfg.cron,
                 next_run_time=next_run_time,
                 last_run=TaskRunItem.model_validate(last_run) if last_run else None,
+                params_schema=TASK_DEFINITIONS[cfg.task_id].get("params_schema"),
             )
         )
 
@@ -204,13 +210,14 @@ async def update_task(
 @router.post("/{task_id}/run", response_model=TaskRunResponse)
 async def run_task_now(
     task_id: str,
+    req: TaskRunRequest = TaskRunRequest(),
     _admin=Depends(require_admin),
 ):
     if task_id not in TASK_DEFINITIONS:
         raise HTTPException(status_code=404, detail="任务不存在")
 
     run_id = await create_task_run(task_id)
-    asyncio.create_task(run_task_by_run_id(task_id, run_id))
+    asyncio.create_task(run_task_by_run_id(task_id, run_id, params=req.params))
     return TaskRunResponse(message="任务已触发", run_id=run_id)
 
 

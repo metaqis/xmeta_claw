@@ -1,5 +1,6 @@
 """定时任务调度"""
 import asyncio
+import inspect
 import json
 from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Dict, Optional
@@ -98,13 +99,14 @@ async def task_archive_refresh_near_max(db, run_id: int):
     await _log_run(db, run_id, "info", f"邂域刷新完成: 扫描 {scanned} 更新 {updated} 失败 {failed}")
 
 
-async def task_archive_explore_new(db, run_id: int):
+async def task_archive_explore_new(db, run_id: int, params: dict | None = None):
     """向上探索当前 max_id 之后的新藏品 ID"""
     max_id = await get_max_numeric_archive_id(db)
     if max_id is None:
         await _log_run(db, run_id, "info", "无可用藏品ID，跳过")
         return
-    explore_count = 300
+    explore_count = int((params or {}).get("explore_count", 300))
+    explore_count = max(10, min(explore_count, 5000))
     start_id = max_id + explore_count
     stop_id = max_id + 1
     await _log_run(db, run_id, "info", f"开始探索新藏品ID: 当前max={max_id} 扫描范围 [{stop_id}, {start_id}]")
@@ -277,10 +279,13 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "archive_id_explore_new": {
         "name": "xmeta 新藏品ID向上探索",
-        "description": "从当前最大 archive_id+1 向上扫描300个ID，发现并入库新发行藏品",
+        "description": "从当前最大 archive_id+1 向上扫描 N 个ID，发现并入库新发行藏品",
         "default_schedule_type": "interval",
         "default_interval_seconds": 2 * 60 * 60,
         "func": task_archive_explore_new,
+        "params_schema": [
+            {"key": "explore_count", "label": "扫描数量", "type": "int", "default": 300, "min": 10, "max": 5000},
+        ],
     },
     "ip_uid_backfill": {
         "name": "IP source_uid 补齐",
@@ -426,7 +431,7 @@ async def cancel_task_run(task_id: str, run_id: int) -> bool:
     return True
 
 
-async def run_task_by_run_id(task_id: str, run_id: int):
+async def run_task_by_run_id(task_id: str, run_id: int, params: dict | None = None):
     if task_id not in TASK_DEFINITIONS:
         raise ValueError("未知任务")
 
@@ -460,7 +465,11 @@ async def run_task_by_run_id(task_id: str, run_id: int):
 
         try:
             task_func: Callable[[Any, int], Awaitable[None]] = TASK_DEFINITIONS[task_id]["func"]
-            await task_func(db, run_id)
+            sig = inspect.signature(task_func)
+            if "params" in sig.parameters:
+                await task_func(db, run_id, params=params)
+            else:
+                await task_func(db, run_id)
             run.status = "success"
             if not run.message:
                 run.message = "success"
@@ -483,11 +492,11 @@ async def run_task_by_run_id(task_id: str, run_id: int):
             await db.commit()
 
 
-async def run_task(task_id: str) -> int:
+async def run_task(task_id: str, params: dict | None = None) -> int:
     if task_id not in TASK_DEFINITIONS:
         raise ValueError("未知任务")
     run_id = await create_task_run(task_id)
-    await run_task_by_run_id(task_id, run_id)
+    await run_task_by_run_id(task_id, run_id, params=params)
     return run_id
 
 

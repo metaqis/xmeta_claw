@@ -11,6 +11,15 @@ export interface TaskRunItem {
   error: string | null
 }
 
+export interface ParamSchema {
+  key: string
+  label: string
+  type: 'int' | 'float' | 'string'
+  default: number | string
+  min?: number
+  max?: number
+}
+
 export interface TaskItem {
   task_id: string
   name: string
@@ -21,6 +30,7 @@ export interface TaskItem {
   cron: string | null
   next_run_time: string | null
   last_run: TaskRunItem | null
+  params_schema: ParamSchema[] | null
 }
 
 export interface TaskListResponse {
@@ -70,7 +80,8 @@ export const tasksApi = {
   list: (): Promise<TaskListResponse> => request.get('/tasks/'),
   update: (taskId: string, data: TaskUpdateRequest): Promise<TaskUpdateResponse> =>
     request.put(`/tasks/${taskId}`, data),
-  run: (taskId: string): Promise<TaskRunResponse> => request.post(`/tasks/${taskId}/run`),
+  run: (taskId: string, params?: Record<string, unknown>): Promise<TaskRunResponse> =>
+    request.post(`/tasks/${taskId}/run`, { params }),
   cancel: (taskId: string, runId: number): Promise<TaskCancelResponse> =>
     request.post(`/tasks/${taskId}/runs/${runId}/cancel`),
   runs: (taskId: string, page: number, pageSize: number): Promise<TaskRunsResponse> =>
