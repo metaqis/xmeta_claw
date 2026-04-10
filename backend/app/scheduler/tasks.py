@@ -11,6 +11,7 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.crawler.archive_id_backfill import (
+    backfill_archives_by_id_desc,
     get_max_numeric_archive_id,
     refresh_archives_around_max_id,
 )
@@ -95,6 +96,38 @@ async def task_archive_refresh_near_max(db, run_id: int):
         on_error=_on_error,
     )
     await _log_run(db, run_id, "info", f"邂域刷新完成: 扫描 {scanned} 更新 {updated} 失败 {failed}")
+
+
+async def task_archive_explore_new(db, run_id: int):
+    """向上探索当前 max_id 之后的新藏品 ID"""
+    max_id = await get_max_numeric_archive_id(db)
+    if max_id is None:
+        await _log_run(db, run_id, "info", "无可用藏品ID，跳过")
+        return
+    explore_count = 300
+    start_id = max_id + explore_count
+    stop_id = max_id + 1
+    await _log_run(db, run_id, "info", f"开始探索新藏品ID: 当前max={max_id} 扫描范围 [{stop_id}, {start_id}]")
+
+    async def _on_progress(scanned: int, created: int, total: int, skipped: int, errors: int):
+        if scanned % 50 == 0 or scanned == total:
+            await _log_run(
+                db, run_id, "info",
+                f"探索进度: {scanned}/{total} 新增 {created} 跳过 {skipped} 失败 {errors}",
+            )
+
+    async def _on_error(archive_id: str, error_msg: str):
+        await _log_run(db, run_id, "error", f"藏品 {archive_id} 失败: {error_msg}")
+
+    scanned, created = await backfill_archives_by_id_desc(
+        db,
+        start_id=start_id,
+        stop_id=stop_id,
+        platform_id=741,
+        on_progress=_on_progress,
+        on_error=_on_error,
+    )
+    await _log_run(db, run_id, "info", f"新ID探索完成: 扫描 {scanned} 新增 {created}")
 
 
 async def task_ip_uid_backfill(db, run_id: int):
@@ -241,6 +274,13 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "default_schedule_type": "interval",
         "default_interval_seconds": 6 * 60 * 60,
         "func": task_archive_refresh_near_max,
+    },
+    "archive_id_explore_new": {
+        "name": "xmeta 新藏品ID向上探索",
+        "description": "从当前最大 archive_id+1 向上扫描300个ID，发现并入库新发行藏品",
+        "default_schedule_type": "interval",
+        "default_interval_seconds": 2 * 60 * 60,
+        "func": task_archive_explore_new,
     },
     "ip_uid_backfill": {
         "name": "IP source_uid 补齐",
