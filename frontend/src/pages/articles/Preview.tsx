@@ -197,6 +197,7 @@ export default function ArticlePreviewPage() {
           <div
             dangerouslySetInnerHTML={{ __html: article.content_html || '<p>暂无内容</p>' }}
             style={{ lineHeight: 1.8 }}
+            className="article-html-preview"
           />
         ) : (
           <pre

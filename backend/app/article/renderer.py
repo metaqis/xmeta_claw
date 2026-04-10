@@ -42,7 +42,7 @@ def markdown_to_wechat_html(markdown_text: str, chart_urls: dict[str, str]) -> s
         f"{html}"
         '<section style="text-align:center;padding:20px 0;margin-top:24px;'
         'border-top:1px solid #e8e8e8;color:#999;font-size:12px;">'
-        "数据来源：鲸探数据平台 | 自动生成"
+        "数据来源：xmeta与鲸探平台 | 文章由AI和相关skill自动生成"
         "</section>"
         "</section>"
     )

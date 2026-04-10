@@ -44,6 +44,13 @@ body {
   line-height: 1.7;
 }
 
+/* 文章 HTML 预览：确保图片不超出容器 */
+.article-html-preview img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
 .markdown-body p {
   margin: 0 0 8px;
 }
