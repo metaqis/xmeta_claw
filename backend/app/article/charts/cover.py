@@ -37,20 +37,21 @@ LOGO_BG    = (20, 38, 90, 200) # 半透明底条
 
 
 def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    """尝试加载系统中文字体，找不到则用默认字体。"""
+    """尝试加载系统中文字体，按 macOS → Windows → Linux 优先级搜索。"""
+    # 通用候选（Regular/Bold 均适用）
     candidates = [
-        "C:/Windows/Fonts/msyh.ttc",       # 微软雅黑 Regular
+        # macOS 系统字体（STHeiti 支持简繁中文）
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        # Windows 字体
         "C:/Windows/Fonts/msyhbd.ttc",      # 微软雅黑 Bold
+        "C:/Windows/Fonts/msyh.ttc",        # 微软雅黑 Regular
         "C:/Windows/Fonts/simhei.ttf",
+        # Linux 字体
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-        "/System/Library/Fonts/PingFang.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ]
-    bold_candidates = [
-        "C:/Windows/Fonts/msyhbd.ttc",
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
-    ]
-    for p in (bold_candidates if bold else candidates):
+    for p in candidates:
         if Path(p).exists():
             try:
                 return ImageFont.truetype(p, size)

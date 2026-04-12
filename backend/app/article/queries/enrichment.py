@@ -275,3 +275,24 @@ async def enrich_daily_launches(db: AsyncSession, launches: list[dict]) -> list[
         })
 
     return enriched
+
+
+async def get_owner_other_ips(
+    db: AsyncSession, owners: list[str]
+) -> dict[str, list[str]]:
+    """查询每个发行主体（owner）合作过的所有 author（IP方），用于分析发行商旗下IP矩阵。"""
+    result: dict[str, list[str]] = {}
+    for owner in owners[:8]:
+        rows = (await db.execute(
+            select(JingtanSkuHomepageDetail.author)
+            .where(
+                and_(
+                    JingtanSkuHomepageDetail.owner == owner,
+                    JingtanSkuHomepageDetail.author.isnot(None),
+                    JingtanSkuHomepageDetail.author != "",
+                )
+            )
+            .distinct()
+        )).scalars().all()
+        result[owner] = [r for r in rows if r]
+    return result

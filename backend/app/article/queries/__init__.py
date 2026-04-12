@@ -7,6 +7,7 @@ from .enrichment import (
     get_owner_portfolios,
     get_author_portfolios,
     enrich_daily_launches,
+    get_owner_other_ips,
     get_ip_deep_analysis,
     get_owner_sku_counts,
 )
@@ -22,4 +23,5 @@ __all__ = [
     "enrich_daily_launches",
     "get_ip_deep_analysis",
     "get_owner_sku_counts",
+    "get_owner_other_ips",
 ]

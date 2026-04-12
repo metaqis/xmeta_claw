@@ -233,3 +233,239 @@ def chart_plane_deal_rank(
     fig.tight_layout()
     save_fig(fig, path)
     return path
+
+
+def chart_market_trend_line(
+    summaries_7d: list[dict],
+    output_dir: str,
+    filename: str = "market_trend_line.png",
+) -> str:
+    """
+    近7天全市场市值 & 成交量双轴折线图（DAILY.md：创建 line 图表）。
+
+    左轴：总市值（亿元）
+    右轴：成交笔数
+    """
+    ensure_dir(output_dir)
+    path = os.path.join(output_dir, filename)
+    if not summaries_7d:
+        return ""
+
+    dates = [s["stat_date"][-5:] for s in summaries_7d]  # MM-DD
+    market_values = [(s.get("total_market_value") or 0) / 1e8 for s in summaries_7d]  # 亿
+    deal_counts = [s.get("total_deal_count") or 0 for s in summaries_7d]
+
+    fig, ax1 = plt.subplots(figsize=(9, 4))
+    fig.patch.set_facecolor(BG_COLOR)
+    ax1.set_facecolor(BG_COLOR)
+    ax1.set_title("近7天市值 & 成交量趋势", fontsize=13, fontweight="bold",
+                  color=TEXT_COLOR, pad=10)
+    ax1.spines["top"].set_visible(False)
+    ax1.spines["right"].set_color(COLORS[1])
+    ax1.spines["left"].set_color(COLORS[0])
+    ax1.spines["bottom"].set_color(GRID_COLOR)
+    ax1.tick_params(colors=TEXT_COLOR, labelsize=9)
+    ax1.grid(axis="y", color=GRID_COLOR, linewidth=0.5, linestyle="--")
+
+    # 左轴：市值
+    line1, = ax1.plot(dates, market_values, marker="o", color=COLORS[0],
+                      linewidth=2, markersize=5, label="总市值（亿）", zorder=3)
+    ax1.set_ylabel("总市值（亿元）", fontsize=10, color=COLORS[0])
+    ax1.tick_params(axis="y", labelcolor=COLORS[0])
+    for x, y in zip(dates, market_values):
+        if y:
+            ax1.annotate(f"{y:.1f}", (x, y), textcoords="offset points",
+                         xytext=(0, 7), ha="center", fontsize=8, color=COLORS[0])
+
+    # 右轴：成交量
+    ax2 = ax1.twinx()
+    ax2.set_facecolor(BG_COLOR)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_color(COLORS[1])
+    ax2.tick_params(colors=TEXT_COLOR, labelsize=9, axis="y", labelcolor=COLORS[1])
+    line2, = ax2.plot(dates, deal_counts, marker="s", color=COLORS[1],
+                      linewidth=2, markersize=5, linestyle="--", label="成交笔数", zorder=3)
+    ax2.set_ylabel("成交笔数", fontsize=10, color=COLORS[1])
+    for x, y in zip(dates, deal_counts):
+        if y:
+            ax2.annotate(f"{y:,}", (x, y), textcoords="offset points",
+                         xytext=(0, -14), ha="center", fontsize=8, color=COLORS[1])
+
+    # 合并图例
+    ax1.legend(handles=[line1, line2], loc="upper left", fontsize=9,
+               facecolor=BG_COLOR, labelcolor=TEXT_COLOR)
+
+    fig.tight_layout()
+    save_fig(fig, path)
+    return path
+
+
+def chart_ip_deal_rank(
+    ip_snapshots: list[dict],
+    output_dir: str,
+    filename: str = "ip_deal_rank.png",
+) -> str:
+    """
+    昨日 IP 成交量横向条形排行（DAILY.md：热门 IP 分析）。
+
+    ip_snapshots: [{"ip_name": ..., "deal_count": ..., "market_amount": ...,
+                    "deal_count_rate": ...}, ...]
+    """
+    ensure_dir(output_dir)
+    path = os.path.join(output_dir, filename)
+    if not ip_snapshots:
+        return ""
+
+    # 按成交量排序，取 Top 12
+    items = sorted(ip_snapshots, key=lambda x: x.get("deal_count") or 0, reverse=True)[:12]
+    if not items:
+        return ""
+
+    names = [i.get("ip_name") or "—" for i in items]
+    counts = [i.get("deal_count") or 0 for i in items]
+    rates = [i.get("deal_count_rate") or 0.0 for i in items]
+    colors = [_UP_COLOR if r >= 0 else _DOWN_COLOR for r in rates]
+
+    y = np.arange(len(names))
+    fig, ax = plt.subplots(figsize=(9, max(4, len(names) * 0.55 + 1.5)))
+    setup_ax(ax, "昨日 IP 成交量排行")
+    ax.barh(y, counts, 0.6, color=colors, zorder=3)
+    ax.set_yticks(y)
+    ax.set_yticklabels(names, fontsize=9, color=TEXT_COLOR)
+    ax.set_xlabel("成交量（笔）", fontsize=10, color=TEXT_COLOR)
+    ax.grid(axis="x", color=GRID_COLOR, linewidth=0.5)
+
+    mx = max(counts, default=1)
+    for i, (c, r) in enumerate(zip(counts, rates)):
+        sign = "+" if r >= 0 else ""
+        lbl = f"{c:,}"
+        if r:
+            lbl += f"  ({sign}{r:.1f}%)"
+        ax.text(c + mx * 0.01, y[i], lbl, va="center", fontsize=8, color=TEXT_COLOR)
+
+    up_patch = mpatches.Patch(color=_UP_COLOR, label="成交量环比上升")
+    dn_patch = mpatches.Patch(color=_DOWN_COLOR, label="成交量环比下降")
+    ax.legend(handles=[up_patch, dn_patch], loc="lower right", fontsize=9)
+
+    fig.tight_layout()
+    save_fig(fig, path)
+    return path
+
+
+
+def chart_market_trend_line(
+    summaries_7d: list[dict],
+    output_dir: str,
+    filename: str = "market_trend_line.png",
+) -> str:
+    """
+    近7天全市场市值 & 成交量双轴折线图（DAILY.md：创建 line 图表）。
+
+    左轴：总市值（亿元）
+    右轴：成交笔数
+    """
+    ensure_dir(output_dir)
+    path = os.path.join(output_dir, filename)
+    if not summaries_7d:
+        return ""
+
+    dates = [s["stat_date"][-5:] for s in summaries_7d]  # MM-DD
+    market_values = [(s.get("total_market_value") or 0) / 1e8 for s in summaries_7d]  # 亿
+    deal_counts = [s.get("total_deal_count") or 0 for s in summaries_7d]
+
+    fig, ax1 = plt.subplots(figsize=(9, 4))
+    fig.patch.set_facecolor(BG_COLOR)
+    ax1.set_facecolor(BG_COLOR)
+    ax1.set_title("近7天市值 & 成交量趋势", fontsize=13, fontweight="bold",
+                  color=TEXT_COLOR, pad=10)
+    ax1.spines["top"].set_visible(False)
+    ax1.spines["right"].set_color(COLORS[1])
+    ax1.spines["left"].set_color(COLORS[0])
+    ax1.spines["bottom"].set_color(GRID_COLOR)
+    ax1.tick_params(colors=TEXT_COLOR, labelsize=9)
+    ax1.grid(axis="y", color=GRID_COLOR, linewidth=0.5, linestyle="--")
+
+    # 左轴：市值
+    line1, = ax1.plot(dates, market_values, marker="o", color=COLORS[0],
+                      linewidth=2, markersize=5, label="总市值（亿）", zorder=3)
+    ax1.set_ylabel("总市值（亿元）", fontsize=10, color=COLORS[0])
+    ax1.tick_params(axis="y", labelcolor=COLORS[0])
+    for x, y in zip(dates, market_values):
+        if y:
+            ax1.annotate(f"{y:.1f}", (x, y), textcoords="offset points",
+                         xytext=(0, 7), ha="center", fontsize=8, color=COLORS[0])
+
+    # 右轴：成交量
+    ax2 = ax1.twinx()
+    ax2.set_facecolor(BG_COLOR)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_color(COLORS[1])
+    ax2.tick_params(colors=TEXT_COLOR, labelsize=9, axis="y", labelcolor=COLORS[1])
+    line2, = ax2.plot(dates, deal_counts, marker="s", color=COLORS[1],
+                      linewidth=2, markersize=5, linestyle="--", label="成交笔数", zorder=3)
+    ax2.set_ylabel("成交笔数", fontsize=10, color=COLORS[1])
+    for x, y in zip(dates, deal_counts):
+        if y:
+            ax2.annotate(f"{y:,}", (x, y), textcoords="offset points",
+                         xytext=(0, -14), ha="center", fontsize=8, color=COLORS[1])
+
+    # 合并图例
+    ax1.legend(handles=[line1, line2], loc="upper left", fontsize=9,
+               facecolor=BG_COLOR, labelcolor=TEXT_COLOR)
+
+    fig.tight_layout()
+    save_fig(fig, path)
+    return path
+
+
+def chart_ip_deal_rank(
+    ip_snapshots: list[dict],
+    output_dir: str,
+    filename: str = "ip_deal_rank.png",
+) -> str:
+    """
+    昨日 IP 成交量横向条形排行（DAILY.md：热门 IP 分析）。
+
+    ip_snapshots: [{"ip_name": ..., "deal_count": ..., "market_amount": ...,
+                    "deal_count_rate": ...}, ...]
+    """
+    ensure_dir(output_dir)
+    path = os.path.join(output_dir, filename)
+    if not ip_snapshots:
+        return ""
+
+    # 按成交量排序，取 Top 12
+    items = sorted(ip_snapshots, key=lambda x: x.get("deal_count") or 0, reverse=True)[:12]
+    if not items:
+        return ""
+
+    names = [i.get("ip_name") or "—" for i in items]
+    counts = [i.get("deal_count") or 0 for i in items]
+    rates = [i.get("deal_count_rate") or 0.0 for i in items]
+    colors = [_UP_COLOR if r >= 0 else _DOWN_COLOR for r in rates]
+
+    y = np.arange(len(names))
+    fig, ax = plt.subplots(figsize=(9, max(4, len(names) * 0.55 + 1.5)))
+    setup_ax(ax, "昨日 IP 成交量排行")
+    ax.barh(y, counts, 0.6, color=colors, zorder=3)
+    ax.set_yticks(y)
+    ax.set_yticklabels(names, fontsize=9, color=TEXT_COLOR)
+    ax.set_xlabel("成交量（笔）", fontsize=10, color=TEXT_COLOR)
+    ax.grid(axis="x", color=GRID_COLOR, linewidth=0.5)
+
+    mx = max(counts, default=1)
+    for i, (c, r) in enumerate(zip(counts, rates)):
+        sign = "+" if r >= 0 else ""
+        lbl = f"{c:,}"
+        if r:
+            lbl += f"  ({sign}{r:.1f}%)"
+        ax.text(c + mx * 0.01, y[i], lbl, va="center", fontsize=8, color=TEXT_COLOR)
+
+    up_patch = mpatches.Patch(color=_UP_COLOR, label="成交量环比上升")
+    dn_patch = mpatches.Patch(color=_DOWN_COLOR, label="成交量环比下降")
+    ax.legend(handles=[up_patch, dn_patch], loc="lower right", fontsize=9)
+
+    fig.tight_layout()
+    save_fig(fig, path)
+    return path
+

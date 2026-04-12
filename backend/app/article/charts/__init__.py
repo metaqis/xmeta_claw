@@ -8,6 +8,8 @@ from .market import (
     chart_plane_census,
     chart_top_archives,
     chart_plane_deal_rank,
+    chart_market_trend_line,
+    chart_ip_deal_rank,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "chart_plane_census",
     "chart_top_archives",
     "chart_plane_deal_rank",
+    "chart_market_trend_line",
+    "chart_ip_deal_rank",
 ]

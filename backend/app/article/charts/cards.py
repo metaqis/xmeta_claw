@@ -25,12 +25,27 @@ def generate_launch_grid(
         return ""
 
     # ── 字体 ─────────────────────────────────────────────────
+    # 按平台优先级排列候选字体路径
+    _FONT_CANDIDATES = [
+        # macOS 系统字体
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        # Windows 字体
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/msyhbd.ttc",
+        "C:/Windows/Fonts/simsun.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        # Linux 字体
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ]
+
     def _font(size: int):
-        for fp in ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]:
+        for fp in _FONT_CANDIDATES:
             try:
                 return ImageFont.truetype(fp, size)
             except Exception:
-                pass
+                continue
         return ImageFont.load_default()
 
     FT = {s: _font(s) for s in [10, 11, 12, 13, 14, 15, 17, 20, 22]}

@@ -43,6 +43,7 @@ def summarize_launches(rows) -> dict[str, Any]:
             "price": price,
             "count": count,
             "value": value,
+            "platform_id": lc.platform_id or 0,
             "platform_name": pn,
             "ip_name": ipn,
             "img": lc.img or "",

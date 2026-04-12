@@ -936,7 +936,14 @@ async def _get_hot_archives(db: AsyncSession, **kwargs) -> str:
         "dealCountSortType": False,
         "platformIdList": [],
         "communityIpIdList": [],
+        "isAllPlatform": None,
+        "isAllCommunityIp": None,
+        "minPrice": None,
+        "maxPrice": None,
+        "beginTime": None,
+        "endTime": None,
         "searchName": search_name,
+        "planeCode": None,
         "topCode": "",
     }
     resp = await crawler_client.post_safe("/h5/market/marketArchivePage", payload)

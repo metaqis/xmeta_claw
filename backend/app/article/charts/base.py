@@ -7,11 +7,35 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 
-for _font_name in ["Microsoft YaHei", "SimHei", "PingFang SC", "WenQuanYi Micro Hei"]:
-    if any(_font_name in f.name for f in fm.fontManager.ttflist):
-        matplotlib.rcParams["font.sans-serif"] = [_font_name, "sans-serif"]
-        break
-matplotlib.rcParams["axes.unicode_minus"] = False
+# ── 中文字体配置 ──────────────────────────────────────────────────────────
+# 策略1：直接用字体文件路径注册（最可靠，适用于 macOS/Linux）
+# 策略2：退化到 font.sans-serif 列表匹配（适用于 Windows / 已安装中文字体）
+_CJK_FONT_PATHS = [
+    # macOS 系统字体（STHeiti / PingFang 私有字体用 .ttc 文件）
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
+    # Linux 常见中文字体
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    # 项目内自带字体（放在 backend/static/fonts/ 下可跨平台）
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "static", "fonts", "NotoSansSC-Regular.ttf"),
+]
+
+_cjk_font_prop = None  # 全局字体属性对象，供图表函数直接传入
+for _fp in _CJK_FONT_PATHS:
+    if os.path.exists(_fp):
+        try:
+            fm.fontManager.addfont(_fp)
+            _prop = fm.FontProperties(fname=_fp)
+            # 写入 rcParams，让所有文本元素默认使用该字体
+            matplotlib.rcParams["font.sans-serif"] = [_prop.get_name(), "sans-serif"]
+            matplotlib.rcParams["font.family"] = "sans-serif"
+            _cjk_font_prop = _prop
+            break
+        except Exception:
+            continue
+
+matplotlib.rcParams["axes.unicode_minus"] = False  # 防止负号变方块
 
 COLORS = [
     "#1677ff", "#52c41a", "#faad14", "#ff4d4f", "#722ed1",

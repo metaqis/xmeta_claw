@@ -1,0 +1,93 @@
+# 接口名称: 获取藏品二级市场挂单列表
+# 来源文档: DAILY.md
+# 说明: 查询指定藏品在二级市场的在售挂单，返回最低价及挂单列表。
+#       sellStatus=2 表示在售状态；active=0 表示普通排序；sortType=null 默认价格升序。
+
+@baseUrl = https://api.x-metash.cn
+
+### 获取藏品二级市场挂单列表
+POST {{baseUrl}}/h5/goods/archiveGoods
+Content-Type: application/json
+
+{
+  "archiveId": "55505",
+  "platformId": "741",
+  "active": "0",
+  "page": 1,
+  "pageSize": 20,
+  "sellStatus": 2,
+  "dealType": "",
+  "goodsType": "",
+  "isPayBond": "",
+  "startTime": "",
+  "endTime": "",
+  "fancyNumberType": "",
+  "goodsNo": null,
+  "sortType": null,
+  "maxPrize": null,
+  "minPrize": null,
+  "isDesignatedNumber": null
+}
+
+### 字段说明
+# archiveId      - 藏品 ID（来自 LaunchCalendar.archiveId 或 Archive 表）
+# platformId     - 平台 ID（741 = 鲸探）
+# active         - 排序模式，0=默认
+# page/pageSize  - 分页参数
+# sellStatus     - 挂单状态：2=在售
+# dealType       - 成交类型筛选，空字符串=不限
+# goodsType      - 商品类型筛选，空字符串=不限
+# isPayBond      - 是否缴纳保证金筛选，空字符串=不限
+# startTime/endTime - 上架时间范围，空字符串=不限
+# fancyNumberType   - 靓号类型筛选，空字符串=不限
+# goodsNo        - 编号搜索，null=不限
+# sortType       - 排序类型，null=默认价格升序
+# maxPrize/minPrize - 价格区间，null=不限
+# isDesignatedNumber - 是否指定编号，null=不限
+
+### 示例响应
+# {
+#   "code": 200,
+#   "msg": "成功",
+#   "data": {
+#     "total": 59,
+#     "goodsMinPrice": 93.80,
+#     "goodsArchiveList": [
+#       {
+#         "goodsId": 68237983,
+#         "archiveId": 55505,
+#         "goodsName": "彩绘人物车马镜",
+#         "pfpImg": null,
+#         "goodsPrice": "93.80",
+#         "sellStatus": 2,
+#         "packageCount": 1,
+#         "sellTime": "2026-04-12",
+#         "goodsNo": "",
+#         "timePass": "2026-04-12 09:11:15",
+#         "dealType": 1,
+#         "goodsType": 1,
+#         "goodsWantBuyCount": 0,
+#         "count": 0,
+#         "isPayBond": true,
+#         "illegalCount": 0,
+#         "isTransfer": false,
+#         "isJintan": false,
+#         "isCart": null,
+#         "restitutionEndTime": "1970-01-01 08:00:00",
+#         "supportPayType": [1, 2, 6, 7],
+#         "fancyNumberType": []
+#       }
+#     ],
+#     "auctionNum": 0
+#   }
+# }
+
+### 关键返回字段说明
+# data.total          - 当前在售总挂单数量
+# data.goodsMinPrice  - 当前最低挂单价（地板价）
+# data.auctionNum     - 拍卖数量
+# goodsArchiveList[].goodsPrice   - 单条挂单价格（字符串）
+# goodsArchiveList[].goodsNo      - 藏品编号（靓号会有特殊值，如"刷流水"）
+# goodsArchiveList[].timePass     - 上架时间，可用于判断挂单活跃度
+# goodsArchiveList[].dealType     - 1=普通出售
+# goodsArchiveList[].isPayBond    - 是否已缴保证金
