@@ -1,6 +1,6 @@
 """市场每日快照数据接口"""
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -165,7 +165,7 @@ async def get_daily_summaries(
     _user=Depends(get_current_user),
 ):
     """查询全市场每日汇总趋势（用于折线图）"""
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     end_date = _parse_date(end, today)
     start_date = _parse_date(start, today - timedelta(days=29))
 
@@ -447,3 +447,4 @@ async def get_top_census(
         TopCensusItem(**_parse_census_row(r, "top_code", "top_name"))
         for r in rows
     ]
+

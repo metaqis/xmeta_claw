@@ -1,10 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, BigInteger, Index,
     Date, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from app.database.db import Base
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -14,7 +18,7 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="viewer")  # admin / viewer
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
 
 class Platform(Base):
@@ -23,7 +27,7 @@ class Platform(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     icon = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     ips = relationship("IP", back_populates="platform")
     launch_calendars = relationship("LaunchCalendar", back_populates="platform")
@@ -41,8 +45,8 @@ class IP(Base):
     description = Column(Text)
     fans_count = Column(Integer)
     platform_id = Column(Integer, ForeignKey("platforms.id"), index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     platform = relationship("Platform", back_populates="ips")
     launch_calendars = relationship("LaunchCalendar", back_populates="ip")
@@ -54,7 +58,7 @@ class LaunchCalendar(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(300), nullable=False)
-    sell_time = Column(DateTime, index=True)
+    sell_time = Column(DateTime(timezone=True), index=True)
     price = Column(Float)
     count = Column(Integer)
     platform_id = Column(Integer, ForeignKey("platforms.id"), index=True)
@@ -63,8 +67,8 @@ class LaunchCalendar(Base):
     priority_purchase_num = Column(Integer, default=0)
     is_priority_purchase = Column(Boolean, default=False)
     source_id = Column(String(100), index=True)  # 原始接口中的 id
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     platform = relationship("Platform", back_populates="launch_calendars")
     ip = relationship("IP", back_populates="launch_calendars")
@@ -76,11 +80,11 @@ class LaunchDetail(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     launch_id = Column(Integer, ForeignKey("launch_calendar.id"), unique=True, index=True)
-    priority_purchase_time = Column(DateTime)
+    priority_purchase_time = Column(DateTime(timezone=True))
     context_condition = Column(Text)
     status = Column(String(50))
     raw_json = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     launch = relationship("LaunchCalendar", back_populates="detail")
 
@@ -93,15 +97,15 @@ class Archive(Base):
     total_goods_count = Column(Integer)
     platform_id = Column(Integer, ForeignKey("platforms.id"), index=True)
     ip_id = Column(Integer, ForeignKey("ips.id"), index=True)
-    issue_time = Column(DateTime)
+    issue_time = Column(DateTime(timezone=True))
     archive_description = Column(Text)
     archive_type = Column(String(50))
     is_hot = Column(Boolean, default=False)
     is_open_auction = Column(Boolean, default=False)
     is_open_want_buy = Column(Boolean, default=False)
     img = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     platform = relationship("Platform", back_populates="archives")
     ip = relationship("IP", back_populates="archives")
@@ -127,8 +131,8 @@ class JingtanSkuWiki(Base):
     sku_producer = Column(String(50))
     mini_file_url = Column(String(500))
     raw_json = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class JingtanSkuHomepageDetail(Base):
@@ -168,8 +172,8 @@ class JingtanSkuHomepageDetail(Base):
     follow_status = Column(String(50))
     produce_amount = Column(Integer)
     raw_json = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class Plane(Base):
@@ -181,8 +185,8 @@ class Plane(Base):
     name = Column(String(100), nullable=False)
     img = Column(String(500))
     description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class TaskConfig(Base):
@@ -195,8 +199,8 @@ class TaskConfig(Base):
     interval_seconds = Column(Integer)
     cron = Column(String(100))
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     runs = relationship("TaskRun", back_populates="task")
 
@@ -207,8 +211,8 @@ class TaskRun(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     task_id = Column(String(50), ForeignKey("task_configs.task_id"), index=True, nullable=False)
     status = Column(String(20), nullable=False)
-    started_at = Column(DateTime, default=datetime.utcnow, index=True)
-    finished_at = Column(DateTime)
+    started_at = Column(DateTime(timezone=True), default=_now, index=True)
+    finished_at = Column(DateTime(timezone=True))
     duration_ms = Column(Integer)
     message = Column(Text)
     error = Column(Text)
@@ -227,7 +231,7 @@ class TaskRunLog(Base):
     run_id = Column(BigInteger, ForeignKey("task_runs.id"), index=True, nullable=False)
     level = Column(String(20), nullable=False, default="info")
     message = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), default=_now, index=True)
 
     __table_args__ = (
         Index("ix_task_run_logs_run_created", "run_id", "created_at"),
@@ -239,7 +243,7 @@ class ArchiveMiss(Base):
     __tablename__ = "archive_misses"
 
     archive_id = Column(String(100), primary_key=True)
-    checked_at = Column(DateTime, default=datetime.utcnow)
+    checked_at = Column(DateTime(timezone=True), default=_now)
 
 
 class ChatSession(Base):
@@ -248,8 +252,8 @@ class ChatSession(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(200), default="新对话")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
 
@@ -264,7 +268,7 @@ class ChatMessage(Base):
     tool_calls = Column(Text)  # JSON string of tool_calls array
     tool_call_id = Column(String(100))
     name = Column(String(100))  # tool name for tool role
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     session = relationship("ChatSession", back_populates="messages")
 
@@ -290,9 +294,9 @@ class Article(Base):
     wechat_media_id = Column(String(200))
     wechat_publish_id = Column(String(200))
     error_message = Column(Text)
-    published_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    published_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     images = relationship("ArticleImage", back_populates="article", cascade="all, delete-orphan")
 
@@ -306,7 +310,7 @@ class ArticleImage(Base):
     image_type = Column(String(50))  # cover / daily_trend / platform_pie / ...
     file_path = Column(String(500))
     wechat_media_url = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     article = relationship("Article", back_populates="images")
 
@@ -324,8 +328,8 @@ class MarketDailySummary(Base):
     top_plane_deal_count = Column(Integer)              # 最高板块成交量
     top_ip_name = Column(String(200))                   # 成交量最高 IP
     top_ip_deal_count = Column(Integer)                 # 最高 IP 成交量
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class MarketPlaneSnapshot(Base):
@@ -342,7 +346,7 @@ class MarketPlaneSnapshot(Base):
     deal_count = Column(Integer)                        # 今日成交量
     shelves_rate = Column(Float)                        # 挂售率
     total_market_value = Column(Float)                  # 总市值
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (
         UniqueConstraint("stat_date", "plane_code", name="uq_plane_snapshot_date_code"),
@@ -370,7 +374,7 @@ class MarketIPSnapshot(Base):
     deal_count = Column(Integer)                        # 成交量
     deal_count_rate = Column(Float)                     # 成交量变化 %
     publish_count = Column(Integer)                     # 总发行量
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (
         UniqueConstraint("stat_date", "community_ip_id", name="uq_ip_snapshot_date_ip"),
@@ -404,7 +408,7 @@ class MarketArchiveSnapshot(Base):
     publish_count = Column(Integer)                     # 发行量
     platform_id = Column(Integer)
     is_transfer = Column(Boolean)                       # 是否可转让
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (
         UniqueConstraint(
@@ -431,7 +435,7 @@ class MarketPlaneCensus(Base):
     up_archive_count = Column(Integer)                  # 今日上涨藏品数
     down_archive_count = Column(Integer)                # 今日下跌藏品数
     up_down_json = Column(Text)                         # upDownList JSON 字符串
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (
         UniqueConstraint("stat_date", "plane_code", name="uq_plane_census_date_code"),
@@ -455,9 +459,10 @@ class MarketTopCensus(Base):
     up_archive_count = Column(Integer)                  # 今日上涨藏品数
     down_archive_count = Column(Integer)                # 今日下跌藏品数
     up_down_json = Column(Text)                         # upDownList JSON 字符串
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (
         UniqueConstraint("stat_date", "top_code", name="uq_top_census_date_code"),
         Index("ix_top_census_date", "stat_date"),
     )
+

@@ -2,7 +2,7 @@
 import asyncio
 import inspect
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -46,7 +46,7 @@ async def _log_run(db, run_id: int, level: str, message: str):
 
 
 async def task_today_calendar_update(db, run_id: int):
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await _log_run(db, run_id, "info", f"开始今日日历强制更新: {today}")
 
     fetched, upserted = await crawl_calendar_for_date_stats(db, today, force_update=True)
@@ -60,7 +60,7 @@ async def task_today_calendar_update(db, run_id: int):
 
 
 async def task_forward_10d_calendar_update(db, run_id: int):
-    today = datetime.utcnow()
+    today = datetime.now(timezone.utc)
     start = (today + timedelta(days=1)).strftime("%Y-%m-%d")
     end = (today + timedelta(days=10)).strftime("%Y-%m-%d")
     await _log_run(db, run_id, "info", f"开始未来10天日历更新: {start} ~ {end}")
@@ -219,7 +219,7 @@ async def task_jingtan_detail_around_max(db, run_id: int):
 
 async def task_article_daily(db, run_id: int):
     await _log_run(db, run_id, "info", "开始生成每日文章")
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     article = await generate_article(db, "daily", today)
     await _log_run(db, run_id, "info", f"每日文章生成完成: id={article.id} title={article.title}")
 
@@ -232,7 +232,7 @@ async def task_article_weekly(db, run_id: int):
 
 async def task_article_monthly(db, run_id: int):
     await _log_run(db, run_id, "info", "开始生成每月文章")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     # 生成上个月的月报
     if now.month == 1:
         y, m = now.year - 1, 12
@@ -326,7 +326,7 @@ TASK_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "name": "每日文章自动生成",
         "description": "每天自动生成数藏日报文章（基于当日发行日历数据）",
         "default_schedule_type": "cron",
-        "default_cron": "0 21 * * *",
+        "default_cron": "30 6 * * *",
         "default_enabled": False,
         "func": task_article_daily,
     },
@@ -392,7 +392,7 @@ async def create_task_run(task_id: str) -> int:
         raise ValueError("未知任务")
 
     async with async_session() as db:
-        run = TaskRun(task_id=task_id, status="queued", started_at=datetime.utcnow())
+        run = TaskRun(task_id=task_id, status="queued", started_at=datetime.now(timezone.utc))
         db.add(run)
         await db.commit()
         await db.refresh(run)
@@ -407,7 +407,7 @@ async def cancel_task_run(task_id: str, run_id: int) -> bool:
         if run.status in ("success", "failed", "cancelled"):
             return False
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if run.status == "queued":
             run.status = "cancelled"
             run.finished_at = now
@@ -435,7 +435,7 @@ async def run_task_by_run_id(task_id: str, run_id: int, params: dict | None = No
     if task_id not in TASK_DEFINITIONS:
         raise ValueError("未知任务")
 
-    started_at = datetime.utcnow()
+    started_at = datetime.now(timezone.utc)
     async with async_session() as db:
         current_task = asyncio.current_task()
         if current_task:
@@ -449,7 +449,7 @@ async def run_task_by_run_id(task_id: str, run_id: int, params: dict | None = No
             return
         if run.status == "cancelling":
             run.status = "cancelled"
-            run.finished_at = datetime.utcnow()
+            run.finished_at = datetime.now(timezone.utc)
             run.duration_ms = int((run.finished_at - started_at).total_seconds() * 1000)
             run.message = "已停止"
             db.add(TaskRunLog(run_id=run_id, level="warn", message="任务已停止"))
@@ -485,7 +485,7 @@ async def run_task_by_run_id(task_id: str, run_id: int, params: dict | None = No
             logger.exception(f"任务执行失败: {task_id}")
         finally:
             _RUNNING_TASKS.pop(run_id, None)
-            finished_at = datetime.utcnow()
+            finished_at = datetime.now(timezone.utc)
             run.finished_at = finished_at
             run.duration_ms = int((finished_at - started_at).total_seconds() * 1000)
             db.add(run)
@@ -566,3 +566,4 @@ def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown()
         logger.info("定时任务调度器已停止")
+

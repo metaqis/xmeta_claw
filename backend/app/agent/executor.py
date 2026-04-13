@@ -1,7 +1,7 @@
 """Tool 执行器：名称 → 执行函数映射"""
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from loguru import logger
@@ -803,7 +803,7 @@ async def _get_ip_detail(db: AsyncSession, **kwargs) -> str:
 async def _get_upcoming_launches(db: AsyncSession, **kwargs) -> str:
     days_ahead = kwargs.get("days_ahead", 7)
     days_back = kwargs.get("days_back", 3)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     start = now - timedelta(days=days_back)
     end = now + timedelta(days=days_ahead)
 
@@ -1164,3 +1164,4 @@ async def execute_tool(name: str, arguments: dict, db: AsyncSession) -> str:
     except Exception as e:
         logger.exception(f"Tool {name} 执行失败")
         return json.dumps({"error": f"工具执行失败: {str(e)}"}, ensure_ascii=False)
+

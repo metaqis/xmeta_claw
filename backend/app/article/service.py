@@ -1,7 +1,7 @@
 """文章生成与发布编排服务"""
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from loguru import logger
@@ -33,7 +33,7 @@ async def generate_article(
     生成文章的完整流程：数据分析 → 图表生成 → AI 写作 → 存库
     article_type: daily / weekly / monthly
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     skill = get_skill(article_type)
 
     # 1) 获取分析数据
@@ -185,7 +185,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         publish_id = await wechat_client.publish(media_id)
         article.wechat_publish_id = publish_id
         article.status = "published"
-        article.published_at = datetime.utcnow()
+        article.published_at = datetime.now(timezone.utc)
         db.add(article)
         await db.commit()
         await db.refresh(article)
@@ -310,3 +310,4 @@ async def update_article_content(
     await db.commit()
     await db.refresh(article)
     return article
+

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional, Tuple
 
 from loguru import logger
@@ -387,7 +387,7 @@ async def crawl_jingtan_sku_homepage_details(
                 await on_progress(processed, upserted, failed, total)
             continue
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         try:
             success = await _upsert_sku_homepage_detail_and_try_sync_wiki(
                 db=db,
@@ -499,7 +499,7 @@ async def crawl_jingtan_sku_homepage_details_desc_backfill(
             current -= 1
             continue
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         try:
             success = await _upsert_sku_homepage_detail_and_try_sync_wiki(
                 db=db,
@@ -613,7 +613,7 @@ async def crawl_jingtan_sku_details_from_id_list(
                 await on_progress(scanned, inserted, skipped, failed, total)
             continue
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         try:
             success = await _upsert_sku_homepage_detail_and_try_sync_wiki(
                 db=db,
@@ -684,3 +684,4 @@ async def crawl_jingtan_sku_details_around_max_id(
         on_progress=on_progress,
         on_error=on_error,
     )
+

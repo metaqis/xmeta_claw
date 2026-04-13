@@ -1,5 +1,5 @@
 """藏品ID倒序补齐，使用批量数据库查询优化性能"""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional, Tuple
 
 from loguru import logger
@@ -42,7 +42,7 @@ async def _record_misses(db: AsyncSession, miss_ids: list[str]):
     """批量记录 API 不存在的 archive_id"""
     if not miss_ids:
         return
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for aid in miss_ids:
         existing = await db.get(ArchiveMiss, aid)
         if not existing:
@@ -188,3 +188,4 @@ async def refresh_archives_around_max_id(
         f"藏品ID邻域刷新完成: max_id={max_id} 范围[{start_id},{end_id}] 扫描 {scanned} 更新 {updated} 失败 {failed}"
     )
     return scanned, updated, failed
+

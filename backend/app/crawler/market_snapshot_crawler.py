@@ -389,7 +389,7 @@ async def build_daily_summary(
     summary.top_plane_deal_count = top_plane.deal_count if top_plane else None
     summary.top_ip_name = top_ip.name if top_ip else None
     summary.top_ip_deal_count = top_ip.deal_count if top_ip else None
-    summary.updated_at = datetime.utcnow()
+    summary.updated_at = datetime.now(timezone.utc)
 
     await db.commit()
     await _log(
@@ -466,7 +466,7 @@ async def run_market_snapshot(
 ) -> dict:
     """执行完整的市场快照流程，返回各步骤写入数量"""
     if stat_date is None:
-        stat_date = datetime.utcnow().date()
+        stat_date = datetime.now(timezone.utc).date()
 
     async def _log(msg: str):
         logger.info(msg)
@@ -494,3 +494,4 @@ async def run_market_snapshot(
         "plane_census_count": plane_census_count,
         "top_census_count": top_census_count,
     }
+

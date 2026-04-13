@@ -1,5 +1,5 @@
 """藏品数据爬虫"""
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,7 +106,7 @@ async def _save_archive(db: AsyncSession, item: dict):
             existing.platform_id = platform_id
         if existing.issue_time is None and issue_time is not None:
             existing.issue_time = issue_time
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(timezone.utc)
     else:
         archive = Archive(
             archive_id=archive_id,
@@ -120,3 +120,4 @@ async def _save_archive(db: AsyncSession, item: dict):
             img=item.get("img"),
         )
         db.add(archive)
+

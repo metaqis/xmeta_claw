@@ -101,27 +101,43 @@ def build_analysis_prompt(data: dict) -> str:
                 launch_list += f"    └ 【{ca['archive_name']}】简介：{desc}\n"
 
     # 含品溢价原始数值（展开算式，避免LLM自行推算错误）
+    # NOTE: percentage 是抽签概率（= salesNum / 发行总量），不是成本分摊
+    # 溢价 = (地板价 / 发行价 - 1) × 100，即买家实际支付 vs 二级市场价
     contain_raw = ""
     for el in (data.get("enriched_launches") or [])[:10]:
-        for ca in (el.get("contain_archives") or []):
-            price = el.get("price") or 0
+        archives = el.get("contain_archives") or []
+        price = el.get("price") or 0
+        # 先算该发行整体的期望价值 = Σ(概率 × 地板价)
+        ev_parts = []
+        for ca in archives:
+            pct = ca.get("percentage") or 0
+            fp = ca.get("live_min_price") or ca.get("min_price") or 0
+            if pct and fp:
+                ev_parts.append((pct, fp))
+        if price and ev_parts:
+            ev = sum(p / 100 * fp for p, fp in ev_parts)
+            ev_premium = round((ev / price - 1) * 100, 1)
+            contain_raw += (
+                f"  ▶ 【{el['name']}】发行价¥{price}，"
+                f"期望价值=Σ(概率×地板价)=¥{ev:.2f}，"
+                f"期望溢价={(ev_premium):+.1f}%"
+                f"（{'正EV' if ev_premium > 5 else '负EV' if ev_premium < -5 else '基本持平'}）\n"
+            )
+        for ca in archives:
             pct = ca.get("percentage") or 0
             min_price = ca.get("live_min_price") or ca.get("min_price") or 0
             live_total = ca.get("live_total")
-            if price and pct and min_price:
-                # 中签后该含品的成本估算 = 发行价 × 配比%
-                cost_est = round(price * pct / 100, 2)
-                # 溢价率（负数表示破发）= (当前最低价/成本估值 - 1) × 100
-                premium_pct = round((min_price / cost_est - 1) * 100, 1) if cost_est > 0 else None
+            if price and min_price:
+                # 溢价率 = (地板价 / 发行价 - 1) × 100
+                premium_pct = round((min_price / price - 1) * 100, 1)
                 live_info = f"，在售 {live_total:,} 件" if live_total is not None else f"，在售{ca.get('selling_count',0)}件"
+                assessment = '溢价' if premium_pct > 5 else '破发' if premium_pct < -5 else '基本持平'
                 contain_raw += (
-                    f"  - 【{el['name']}】→【{ca['archive_name']}】\n"
-                    f"    配比={pct}%，发行价¥{price}"
-                    f" → 成本估值=¥{price}×{pct}%=¥{cost_est}\n"
-                    f"    当前地板价（实时live_min_price）=¥{min_price}{live_info}"
+                    f"  - 【{ca['archive_name']}】概率{pct}%，发行价¥{price}\n"
+                    f"    当前地板价=¥{min_price}{live_info}"
                     f"，成交{ca.get('deal_count',0)}笔\n"
-                    f"    溢价=({min_price}/{cost_est}-1)×100={premium_pct}%"
-                    f"（{'溢价' if premium_pct and premium_pct > 5 else '破发' if premium_pct and premium_pct < -5 else '基本持平'}）\n"
+                    f"    溢价=({min_price}/{price}-1)×100={premium_pct}%"
+                    f"（{assessment}）\n"
                 )
 
     # IP 活跃度原始数据（便于LLM判断活跃等级）
@@ -234,11 +250,11 @@ def build_analysis_prompt(data: dict) -> str:
     {{
       "archive_name": "<含品名>",
       "launch_name": "<所属发行名>",
-      "percentage": <配比%>,
-      "cost_estimate": <发行价×配比/100的结果>,
+      "percentage": <抽签概率%>,
+      "issue_price": <发行价>,
       "current_min_price": <当前地板价（live_min_price优先）>,
       "live_total": <预售/在售总量或null>,
-      "premium_pct": <溢价%，使用上方展开算式的结果>,
+      "premium_pct": <溢价%，使用上方展开算式的结果，即(地板价/发行价-1)×100>,
       "assessment": "<溢价/持平/破发>"
     }}
   ],
@@ -329,14 +345,12 @@ def build_daily_prompt(data: dict, available_charts: list[str]) -> str:
                 live_total = ca.get("live_total")
                 if live_min or live_total is not None:
                     premium = ""
-                    if live_min and el.get("price") and ca.get("percentage"):
-                        cost = el["price"] * ca["percentage"] / 100
-                        if cost > 0:
-                            ratio = live_min / cost
-                            if ratio > 1.05:
-                                premium = f"（溢价约{(ratio - 1) * 100:.0f}%）"
-                            elif ratio < 0.95:
-                                premium = f"（破发约{(1 - ratio) * 100:.0f}%）"
+                    if live_min and el.get("price"):
+                        ratio = live_min / el["price"]
+                        if ratio > 1.05:
+                            premium = f"（溢价{(ratio - 1) * 100:.0f}%）"
+                        elif ratio < 0.95:
+                            premium = f"（破发{(1 - ratio) * 100:.0f}%）"
                     market_info = ""
                     if live_total is not None:
                         market_info += f"在售总量 {live_total:,}件"

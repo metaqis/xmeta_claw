@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional, Tuple
 
 from loguru import logger
@@ -84,7 +84,7 @@ async def crawl_jingtan_sku_wiki(
 
             fetched = len(records)
             upserted = 0
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             for item in records:
                 if not isinstance(item, dict):
@@ -159,3 +159,4 @@ async def crawl_jingtan_sku_wiki(
 
     logger.info(f"SKU wiki 爬取完成: fetched={total_fetched} upserted={total_upserted}")
     return total_fetched, total_upserted
+

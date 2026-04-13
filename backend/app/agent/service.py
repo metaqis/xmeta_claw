@@ -2,7 +2,7 @@
 import asyncio
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, AsyncGenerator, Optional
 
@@ -594,7 +594,7 @@ async def stream_chat(
     stage_started = perf_counter()
     db.add(ChatMessage(session_id=session_id, role="user", content=content))
     needs_title = session.title == "新对话"
-    session.updated_at = datetime.utcnow()
+    session.updated_at = datetime.now(timezone.utc)
     await db.commit()
     profiling["stages"]["save_user_message_ms"] = round((perf_counter() - stage_started) * 1000, 3)
 
@@ -812,3 +812,4 @@ async def stream_chat(
     except Exception as e:
         logger.exception("Agent 聊天失败")
         yield _sse({"type": "error", "message": str(e)})
+
