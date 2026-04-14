@@ -13,7 +13,7 @@ from app.article.queries import get_launch_rows, summarize_launches, get_daily_t
 
 async def get_weekly_data(db: AsyncSession, end_date: str | None = None) -> dict[str, Any]:
     if end_date:
-        end_obj = datetime.strptime(end_date, "%Y-%m-%d")
+        end_obj = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
         end_obj = datetime.now(_BEIJING).replace(hour=0, minute=0, second=0, microsecond=0)
 
