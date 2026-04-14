@@ -28,7 +28,7 @@ MARKET_KEYWORDS = (
     "行情", "市值", "成交额", "成交量", "地板价", "最低价", "均价", "市场表现", "市场价",
 )
 TREND_KEYWORDS = (
-    "走势", "趋势", "曲线", "k线", "价格变化", "涨跌", "趋势图",
+    "走势", "趋势", "曲线", "k线", "价格变化", "涨跌", "趋势图", "涨了", "跌了",
 )
 HOT_KEYWORDS = (
     "热榜", "热门", "排行", "排名", "top", "榜单",
@@ -43,7 +43,7 @@ CATEGORY_KEYWORDS = (
     "鲸探50", "禁出195", "新品", "分类", "分类排行", "行情分类", "秒转",
 )
 SECTOR_KEYWORDS = (
-    "板块", "字画", "文物", "非遗", "plane", "sector",
+    "板块", "字画", "文物", "非遗", "plane", "sector", "平台",
 )
 STATS_KEYWORDS = (
     "概览", "统计", "总数", "数据库", "数据量", "平台数据",
@@ -53,6 +53,29 @@ DETAIL_KEYWORDS = (
 )
 PRONOUN_KEYWORDS = (
     "它", "这个", "这个藏品", "该藏品", "这个ip", "该ip", "ta", "其",
+)
+MARKET_OVERVIEW_KEYWORDS = (
+    "市场概况", "市场概览", "今日市场", "市场总览", "大盘", "全市场",
+    "市场整体", "整体行情", "市场怎么样", "市场行情",
+)
+CENSUS_KEYWORDS = (
+    "涨跌分布", "涨跌统计", "涨跌情况", "成交统计", "成交详细",
+    "涨了多少", "跌了多少", "多少涨多少跌", "普查",
+)
+LISTING_KEYWORDS = (
+    "挂单", "在售", "挂售", "最低价挂单", "买入", "出售", "挂牌",
+    "二级市场", "多少钱", "目前价格", "现在卖",
+)
+JINGTAN_KEYWORDS = (
+    "sku", "百科", "鲸探官方", "官方数据", "发行信息", "收藏数",
+    "作者是谁", "谁创作", "鲸探sku", "鲸探",
+)
+HISTORY_KEYWORDS = (
+    "历史", "昨天", "前天", "上周", "上个月", "某天", "历史对比",
+    "历史数据", "往期", "过去", "之前的", "回顾",
+)
+LAUNCH_DETAIL_KEYWORDS = (
+    "优先购", "优先购条件", "发行详情", "发售详情", "购买条件", "怎么买", "资格",
 )
 RESOLVE_TOOL_NAME = "resolve_entities"
 BASE_ENTITY_TOOLS = {
@@ -96,6 +119,12 @@ _INTENT_LABEL_MAP = {
     "sector": "板块",
     "stats": "数据概览",
     "detail": "详情查询",
+    "market_overview": "市场概况",
+    "census": "成交统计",
+    "listing": "挂单查询",
+    "jingtan": "鲸探百科",
+    "history": "历史对比",
+    "launch_detail": "发行详情",
 }
 
 
@@ -134,6 +163,12 @@ def _classify_intent(user_text: str) -> dict[str, bool]:
         "stats": _contains_any(text, STATS_KEYWORDS),
         "detail": _contains_any(text, DETAIL_KEYWORDS),
         "pronoun_followup": _contains_any(text, PRONOUN_KEYWORDS),
+        "market_overview": _contains_any(text, MARKET_OVERVIEW_KEYWORDS),
+        "census": _contains_any(text, CENSUS_KEYWORDS),
+        "listing": _contains_any(text, LISTING_KEYWORDS),
+        "jingtan": _contains_any(text, JINGTAN_KEYWORDS),
+        "history": _contains_any(text, HISTORY_KEYWORDS),
+        "launch_detail": _contains_any(text, LAUNCH_DETAIL_KEYWORDS),
     }
 
 
@@ -143,12 +178,22 @@ def _select_tools(user_text: str) -> tuple[list[dict[str, Any]], dict[str, bool]
 
     if intent["calendar"]:
         selected_names.add(CALENDAR_TOOL_NAME)
+    if intent["launch_detail"]:
+        selected_names.update({CALENDAR_TOOL_NAME, "get_launch_detail"})
     if intent["stats"]:
         selected_names.add("get_db_stats")
+    if intent["market_overview"]:
+        selected_names.add("get_market_overview")
     if intent["category"]:
         selected_names.update({"get_market_categories", "get_category_archives"})
+        if intent["census"]:
+            selected_names.add("get_top_census")
     if intent["sector"]:
         selected_names.update({"get_sector_stats", "get_plane_list", "get_sector_archives"})
+        if intent["census"]:
+            selected_names.add("get_plane_census")
+    if intent["census"] and not intent["sector"] and not intent["category"]:
+        selected_names.update({"get_plane_census", "get_top_census", "get_plane_list", "get_market_categories"})
     if intent["ip_ranking"]:
         selected_names.add("get_ip_ranking")
     elif intent["hot"]:
@@ -157,6 +202,12 @@ def _select_tools(user_text: str) -> tuple[list[dict[str, Any]], dict[str, bool]
         selected_names.add("get_archive_market")
     if intent["trend"]:
         selected_names.add("get_archive_price_trend")
+    if intent["listing"]:
+        selected_names.add("get_archive_goods_listing")
+    if intent["jingtan"] or intent["detail"]:
+        selected_names.update({"search_jingtan_sku", "get_jingtan_sku_detail"})
+    if intent["history"]:
+        selected_names.add("get_market_history")
 
     needs_entity_tools = any(
         [
@@ -165,6 +216,7 @@ def _select_tools(user_text: str) -> tuple[list[dict[str, Any]], dict[str, bool]
             intent["detail"],
             intent["ip"],
             intent["pronoun_followup"],
+            intent["listing"],
         ]
     ) or not selected_names
     if needs_entity_tools:
@@ -403,42 +455,43 @@ def _build_runtime_guidance(
     effective_query: str | None = None,
 ) -> str:
     selected_tool_names = ", ".join(t["function"]["name"] for t in selected_tools)
-    rules = [
-        "本轮只使用与当前问题最相关的工具，不要为了求全而无关扩展。",
-        "当你决定调用工具时，直接发起调用，不要输出任何过渡性文字（如'让我查询'、'我将使用xxx工具'等）。",
-        "如果用户给的是藏品名/IP名而不是ID，且问题涉及详情、行情、走势、对比，优先先调用 resolve_entities。",
-        "如果 resolve_entities 或搜索结果存在多个高相似候选且没有明确 best_match，应先让用户确认。",
-        "如果数据库结果为空，或只能模糊命中但不够确定，可继续使用 online_search_archives / online_search_ips，给用户推荐候选项。",
-        "如果工具结果里包含 clarification_question 或 recommended_reply_format，优先按该提示组织回复。",
-        "如果工具结果里包含 public_items 或 public_recommendations，优先使用这些无ID字段组织最终回复。",
-        "当需要用户确认候选时，优先使用编号列表；每项只展示名称和平台，不要展示匹配方式、来源等内部元信息，结尾明确要求用户回复序号或名称。",
-        "除非用户明确要求，否则最终回复里不要暴露 archive_id、ip_id、source_uid、communityIpId 等内部ID。",
-        "最终回复中严禁出现工具名称（如 resolve_entities、get_hot_archives）、英文字段名（如 archive_id、dealCount、avgAmount）、JSON 结构或处理过程描述，所有数据必须翻译为自然中文呈现。",
-        "get_archive_market / get_archive_price_trend 必须使用已确认的 archive_id。",
-        "get_ip_detail 必须使用已确认的 ip_id。",
-        "若用户是追问且最近上下文已有明确实体，可优先沿用最近实体；若仍不确定，再追问。",
+    rules: list[str] = [
+        "只用与当前问题相关的工具，不为求全而扩展。",
+        "调用工具时直接发起，不输出过渡文字。",
+        "藏品/IP名查详情/行情/走势 → 先 resolve_entities。",
+        "多候选无best_match → 用编号列表让用户确认（只显示名称+平台）。",
+        "DB空 → 在线查询推荐候选。",
+        "工具返回 public_items/public_recommendations → 优先使用。",
+        "最终回复禁止暴露内部ID、工具名、英文字段。",
     ]
     if intent["calendar"]:
-        rules.append("本轮若用户是发行/发售相关问题，可直接使用发行日历工具，不要额外展开无关行情工具。")
+        rules.append("发行/发售问题 → 用发行日历工具，不扩展行情。")
     if intent["hot"] or intent["ip_ranking"] or intent["category"] or intent["sector"]:
-        rules.append("本轮如果是排行/列表类问题，先给列表结论，除非用户明确要求，否则不要擅自钻取单个对象详情。")
+        rules.append("排行/列表类 → 先给列表，不擅自展开单个详情。")
+    if intent.get("market_overview"):
+        rules.append("市场概况 → get_market_overview，无需实体确认。")
+    if intent.get("census"):
+        rules.append("涨跌分布 → get_plane_census / get_top_census。")
+    if intent.get("jingtan"):
+        rules.append("鲸探百科 → search_jingtan_sku / get_jingtan_sku_detail。")
+    if intent.get("history"):
+        rules.append("历史对比 → get_market_history。")
+    if intent.get("listing"):
+        rules.append("挂单查询 → 确认实体后 get_archive_goods_listing。")
+    if intent.get("launch_detail"):
+        rules.append("发行详情/优先购 → get_launch_detail。")
 
     recent_context_text = _format_recent_entities(recent_entities)
     guidance_lines = [
-        "你正在执行一次运行时判定，请优先保证实体识别准确。",
-        f"用户问题：{user_text}",
-        f"意图标签：{json.dumps(intent, ensure_ascii=False)}",
-        f"允许工具：{selected_tool_names}",
-        "执行规则：",
-        *[f"- {rule}" for rule in rules],
+        f"用户: {user_text}",
+        f"允许工具: {selected_tool_names}",
+        "规则: " + " | ".join(rules),
     ]
     if recent_context_text:
-        guidance_lines.append("最近会话上下文：")
         guidance_lines.append(recent_context_text)
     if effective_query and effective_query != user_text:
-        guidance_lines.append(f"本轮工具选择参考的原始需求：{effective_query}")
+        guidance_lines.append(f"原始需求: {effective_query}")
     if selected_candidate:
-        guidance_lines.append("本轮候选确认结果：")
         guidance_lines.append(_format_selected_candidate(selected_candidate))
 
     return "\n".join(guidance_lines)
@@ -470,10 +523,10 @@ async def _load_history(db: AsyncSession, session_id: int) -> tuple[list[dict], 
         msg_dict: dict = {"role": m.role}
         if m.content is not None:
             content = m.content
-            if m.role == "tool" and len(content) > 1500:
+            if m.role == "tool" and len(content) > 800:
                 trunc_start = perf_counter()
                 original_length = len(content)
-                content = content[:1500] + "\n...(历史数据已省略)"
+                content = content[:800] + "\n...(历史数据已省略)"
                 truncation_events.append({
                     "role": m.role,
                     "tool_name": m.name,
@@ -515,11 +568,11 @@ def _generate_suggestions(tools_used: list[str]) -> list[str]:
     tool_set = set(tools_used)
 
     if "get_hot_archives" in tool_set:
-        pool.extend(["查看近7天成交热榜", "查看板块统计数据"])
+        pool.extend(["查看近7天成交热榜", "查看板块统计数据", "今日市场概况"])
     if "search_archives" in tool_set or "get_archive_detail" in tool_set:
-        pool.extend(["查看该藏品实时行情", "查看价格走势图"])
+        pool.extend(["查看该藏品实时行情", "查看价格走势图", "查看挂单情况"])
     if "get_archive_market" in tool_set:
-        pool.extend(["查看近7天行情变化", "对比其他热门藏品"])
+        pool.extend(["查看近7天行情变化", "查看该藏品挂单列表", "对比其他热门藏品"])
     if "get_archive_price_trend" in tool_set:
         pool.extend(["查看近30天价格走势", "查看今日成交热榜"])
     if "get_ip_ranking" in tool_set:
@@ -527,18 +580,30 @@ def _generate_suggestions(tools_used: list[str]) -> list[str]:
     if "search_ips" in tool_set or "get_ip_detail" in tool_set:
         pool.extend(["查看IP旗下藏品行情", "查看IP热度排行榜"])
     if "get_sector_stats" in tool_set:
-        pool.extend(["查看某板块下的藏品交易", "查看IP排行榜"])
+        pool.extend(["查看某板块涨跌分布", "查看板块下藏品交易", "查看IP排行榜"])
     if "get_upcoming_launches" in tool_set:
-        pool.extend(["搜索即将发行的藏品详情", "查看平台数据概览"])
+        pool.extend(["查看某个发行的详情和优先购条件", "查看平台数据概览"])
     if "get_db_stats" in tool_set:
-        pool.extend(["查看今日成交热榜", "查看近期发行日历"])
+        pool.extend(["查看今日市场概况", "查看成交热榜", "查看近期发行日历"])
     if "get_market_categories" in tool_set or "get_category_archives" in tool_set:
-        pool.extend(["查看鲸探50排行", "查看其他行情分类"])
+        pool.extend(["查看鲸探50涨跌分布", "查看其他行情分类"])
     if "get_plane_list" in tool_set or "get_sector_archives" in tool_set:
-        pool.extend(["查看其他板块的藏品交易", "查看板块统计概览"])
+        pool.extend(["查看板块涨跌详细统计", "查看板块统计概览"])
+    if "get_market_overview" in tool_set:
+        pool.extend(["查看板块统计详情", "查看成交热榜", "查看IP排行"])
+    if "get_plane_census" in tool_set or "get_top_census" in tool_set:
+        pool.extend(["查看板块下藏品交易排行", "查看其他板块涨跌分布"])
+    if "get_archive_goods_listing" in tool_set:
+        pool.extend(["查看藏品行情走势", "查看藏品市场数据"])
+    if "search_jingtan_sku" in tool_set or "get_jingtan_sku_detail" in tool_set:
+        pool.extend(["搜索其他鲸探藏品百科", "查看该藏品的市场行情"])
+    if "get_market_history" in tool_set:
+        pool.extend(["对比其他日期的数据", "查看今日实时数据"])
+    if "get_launch_detail" in tool_set:
+        pool.extend(["查看近期其他发行", "查看该藏品市场行情"])
 
     if not pool:
-        pool = ["今天成交热榜前10是哪些", "查看板块统计数据", "近期有哪些新品发行"]
+        pool = ["今天市场概况怎么样", "今天成交热榜前10是哪些", "查看板块统计数据", "近期有哪些新品发行"]
 
     seen: set[str] = set()
     unique: list[str] = []
@@ -640,31 +705,49 @@ async def stream_chat(
         )
         messages = _inject_runtime_guidance(messages, runtime_guidance)
         tools_used: list[str] = []
+        # 中间轮次用更少 max_tokens，加速 tool_call 生成
+        intermediate_max_tokens = min(settings.LLM_MAX_TOKENS, 2048)
 
         for _round in range(round_limit):
             llm_started = perf_counter()
-            # 流式调用：收集完整响应后根据是否有 tool_calls 决定输出策略
+            is_last_chance = _round == round_limit - 1
+            cur_max_tokens = settings.LLM_MAX_TOKENS if is_last_chance else intermediate_max_tokens
+
             stream = await client.chat.completions.create(
                 model=settings.LLM_MODEL,
                 messages=messages,
-                tools=selected_tools,
+                tools=selected_tools if not is_last_chance else None,
                 temperature=settings.LLM_TEMPERATURE,
-                max_tokens=settings.LLM_MAX_TOKENS,
+                max_tokens=cur_max_tokens,
                 stream=True,
             )
 
-            # 先收集完整响应再决定是否输出
-            # 避免工具调用轮次的"思考"文本泄漏给用户
+            # ── 早期检测模式：根据首个 delta 判断是流式文本还是工具调用 ──
+            # 避免全部缓冲后再回放，实现真正的逐 token 流式输出
+            mode: str = "detecting"  # detecting → streaming | buffering
             streamed_content = ""
-            content_chunks: list[str] = []  # 保留各 chunk 以便最终答案可逐块回放
-            streamed_tool_calls: dict[int, dict] = {}  # index -> {id, name, arguments}
+            content_chunks: list[str] = []
+            streamed_tool_calls: dict[int, dict] = {}
+
             async for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if not delta:
                     continue
+
+                if mode == "detecting":
+                    if delta.tool_calls:
+                        mode = "buffering"
+                    elif delta.content:
+                        mode = "streaming"
+
                 if delta.content:
                     streamed_content += delta.content
-                    content_chunks.append(delta.content)
+                    if mode == "streaming":
+                        # 真流式：边收到边推给用户
+                        yield _sse({"type": "content", "text": delta.content})
+                    else:
+                        content_chunks.append(delta.content)
+
                 if delta.tool_calls:
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index
@@ -680,11 +763,13 @@ async def stream_chat(
 
             profiling["stages"][f"llm_round_{_round + 1}_ms"] = round((perf_counter() - llm_started) * 1000, 3)
 
-            # 无 tool_calls → 纯文本回答（最终答案），逐块回放保持流式体验
+            # 无 tool_calls → 纯文本回答（最终答案）
             if not streamed_tool_calls:
                 if streamed_content:
-                    for text_chunk in content_chunks:
-                        yield _sse({"type": "content", "text": text_chunk})
+                    # buffering 模式下的文本需要补发（detecting 阶段的文本已在 streaming 模式下发送）
+                    if mode == "buffering":
+                        for text_chunk in content_chunks:
+                            yield _sse({"type": "content", "text": text_chunk})
                     save_started = perf_counter()
                     db.add(ChatMessage(
                         session_id=session_id, role="assistant", content=streamed_content,
@@ -758,12 +843,17 @@ async def stream_chat(
                     "elapsed_ms": total_tool_ms,
                     "result_length": len(tool_result),
                 })
+                # 给 LLM 的上下文截断，降低下一轮 token 消耗
+                llm_tool_result = tool_result
+                if len(llm_tool_result) > 3000:
+                    llm_tool_result = llm_tool_result[:3000] + "\n...(数据已截断，核心内容在上方)"
                 messages.append({
                     "role": "tool",
-                    "content": tool_result,
+                    "content": llm_tool_result,
                     "tool_call_id": tool_call_id,
                     "name": tool_name,
                 })
+                # DB 保存完整结果
                 db.add(ChatMessage(
                     session_id=session_id,
                     role="tool",

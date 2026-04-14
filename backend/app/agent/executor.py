@@ -1,7 +1,7 @@
 """Tool 执行器：名称 → 执行函数映射"""
 import json
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import date as date_type, datetime, timezone, timedelta
 from typing import Any
 
 from loguru import logger
@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crawler.client import crawler_client
-from app.database.models import Archive, IP, LaunchCalendar, Platform
+from app.database.models import (
+    Archive, IP, LaunchCalendar, LaunchDetail, Platform, Plane,
+    JingtanSkuWiki, JingtanSkuHomepageDetail,
+    MarketDailySummary, MarketPlaneSnapshot, MarketIPSnapshot,
+    MarketArchiveSnapshot, MarketPlaneCensus, MarketTopCensus,
+)
 from app.core.cache import cache_get, cache_set, make_cache_key
 
 XMETA_BASE = "https://xmeta.x-metash.cn/prod/xmeta_mall/#/pages"
@@ -839,12 +844,32 @@ async def _get_db_stats(db: AsyncSession, **kwargs) -> str:
     ip_count = (await db.execute(select(func.count()).select_from(IP))).scalar() or 0
     platform_count = (await db.execute(select(func.count()).select_from(Platform))).scalar() or 0
     calendar_count = (await db.execute(select(func.count()).select_from(LaunchCalendar))).scalar() or 0
+    plane_count = (await db.execute(select(func.count()).select_from(Plane))).scalar() or 0
+    sku_wiki_count = (await db.execute(select(func.count()).select_from(JingtanSkuWiki))).scalar() or 0
+    sku_detail_count = (await db.execute(select(func.count()).select_from(JingtanSkuHomepageDetail))).scalar() or 0
+
+    latest_summary_stmt = select(MarketDailySummary).order_by(MarketDailySummary.stat_date.desc()).limit(1)
+    latest_summary = (await db.execute(latest_summary_stmt)).scalar_one_or_none()
+    market_summary = None
+    if latest_summary:
+        market_summary = {
+            "date": str(latest_summary.stat_date),
+            "total_deal_count": latest_summary.total_deal_count,
+            "total_market_value": latest_summary.total_market_value,
+            "total_deal_amount": latest_summary.total_deal_amount,
+            "top_plane": latest_summary.top_plane_name,
+            "top_ip": latest_summary.top_ip_name,
+        }
 
     return json.dumps({
         "archive_count": archive_count,
         "ip_count": ip_count,
         "platform_count": platform_count,
         "launch_calendar_count": calendar_count,
+        "plane_count": plane_count,
+        "jingtan_sku_wiki_count": sku_wiki_count,
+        "jingtan_sku_detail_count": sku_detail_count,
+        "latest_market_summary": market_summary,
     }, ensure_ascii=False)
 
 
@@ -1130,6 +1155,481 @@ async def _get_sector_archives(db: AsyncSession, **kwargs) -> str:
     return json.dumps({"total": data.get("total", 0), "items": items}, ensure_ascii=False)
 
 
+# ── 市场概况 / 深度统计 / 鲸探SKU / 挂单 / 历史快照 ────
+
+async def _get_market_overview(db: AsyncSession, **kwargs) -> str:
+    """市场全局概况"""
+    date_str = kwargs.get("date")
+    if date_str:
+        try:
+            target_date = date_type.fromisoformat(date_str)
+        except ValueError:
+            return json.dumps({"error": "日期格式无效，请使用 YYYY-MM-DD"}, ensure_ascii=False)
+    else:
+        target_date = datetime.now(timezone.utc).date()
+
+    stmt = select(MarketDailySummary).where(MarketDailySummary.stat_date == target_date)
+    summary = (await db.execute(stmt)).scalar_one_or_none()
+
+    if summary:
+        prev_date = target_date - timedelta(days=1)
+        prev_summary = (await db.execute(
+            select(MarketDailySummary).where(MarketDailySummary.stat_date == prev_date)
+        )).scalar_one_or_none()
+
+        data = {
+            "date": str(target_date),
+            "total_deal_count": summary.total_deal_count,
+            "total_market_value": summary.total_market_value,
+            "total_deal_amount": summary.total_deal_amount,
+            "active_plane_count": summary.active_plane_count,
+            "top_plane": summary.top_plane_name,
+            "top_plane_deal_count": summary.top_plane_deal_count,
+            "top_ip": summary.top_ip_name,
+            "top_ip_deal_count": summary.top_ip_deal_count,
+            "source": "db",
+        }
+        if prev_summary:
+            data["comparison"] = {
+                "prev_date": str(prev_date),
+                "deal_count_change": (summary.total_deal_count or 0) - (prev_summary.total_deal_count or 0),
+                "market_value_change": round(((summary.total_market_value or 0) - (prev_summary.total_market_value or 0)), 2),
+                "deal_amount_change": round(((summary.total_deal_amount or 0) - (prev_summary.total_deal_amount or 0)), 2),
+            }
+        return json.dumps(data, ensure_ascii=False)
+
+    # DB 无数据，从在线板块统计汇总
+    sector_resp = await crawler_client.post_safe("/h5/plane/listNew", {"type": 0, "pageNum": 1, "pageSize": 100})
+    if not sector_resp or sector_resp.get("code") != 200:
+        return json.dumps({"error": f"{target_date} 的市场概况暂无数据"}, ensure_ascii=False)
+
+    sectors = sector_resp.get("data", [])
+    total_market_value = sum(s.get("totalMarketValue") or 0 for s in sectors)
+    total_deal_count = sum(s.get("dealCount") or 0 for s in sectors)
+    top_sector = max(sectors, key=lambda s: s.get("dealCount") or 0) if sectors else {}
+
+    return json.dumps({
+        "date": str(target_date),
+        "total_market_value": round(total_market_value, 2),
+        "total_deal_count": total_deal_count,
+        "active_plane_count": len([s for s in sectors if (s.get("dealCount") or 0) > 0]),
+        "top_plane": top_sector.get("name"),
+        "top_plane_deal_count": top_sector.get("dealCount"),
+        "sectors_summary": [
+            {
+                "name": s.get("name"),
+                "deal_count": s.get("dealCount"),
+                "market_value": s.get("totalMarketValue"),
+                "avg_price_change": s.get("avgPrice"),
+            }
+            for s in sorted(sectors, key=lambda x: x.get("dealCount") or 0, reverse=True)[:10]
+        ],
+        "source": "online_aggregated",
+    }, ensure_ascii=False)
+
+
+async def _get_plane_census(db: AsyncSession, **kwargs) -> str:
+    """板块详细成交统计（涨跌分布）"""
+    plane_code = kwargs.get("plane_code", "")
+    time_type = kwargs.get("time_type", 0)
+
+    resp = await crawler_client.post_safe(
+        "/h5/market/censusPlaneArchive",
+        {"timeType": time_type, "planeCode": plane_code},
+    )
+    if not resp or resp.get("code") != 200:
+        return json.dumps({"error": "获取板块成交统计失败"}, ensure_ascii=False)
+
+    data = resp.get("data", {})
+    up_down_list = data.get("upDownList", [])
+    up_dist = [{"range": i.get("label"), "count": i.get("count")} for i in up_down_list if i.get("type") == 1]
+    down_dist = [{"range": i.get("label"), "count": i.get("count")} for i in up_down_list if i.get("type") == 2]
+
+    return json.dumps({
+        "plane_code": plane_code,
+        "total_market_value": data.get("totalMarketAmount"),
+        "market_value_change_pct": data.get("totalMarketAmountRate"),
+        "total_deal_count": data.get("totalDealCount"),
+        "deal_count_change_pct": data.get("totalDealCountRate"),
+        "total_archive_count": data.get("totalArchiveCount"),
+        "up_count": data.get("upArchiveCount"),
+        "down_count": data.get("downArchiveCount"),
+        "up_distribution": up_dist,
+        "down_distribution": down_dist,
+    }, ensure_ascii=False)
+
+
+async def _get_top_census(db: AsyncSession, **kwargs) -> str:
+    """行情分类详细成交统计（涨跌分布）"""
+    top_code = kwargs.get("top_code", "")
+    time_type = kwargs.get("time_type", 0)
+
+    resp = await crawler_client.post_safe(
+        "/h5/market/censusArchiveTop",
+        {"timeType": time_type, "topCode": top_code},
+    )
+    if not resp or resp.get("code") != 200:
+        return json.dumps({"error": "获取分类成交统计失败"}, ensure_ascii=False)
+
+    data = resp.get("data", {})
+    up_down_list = data.get("upDownList", [])
+    up_dist = [{"range": i.get("label"), "count": i.get("count")} for i in up_down_list if i.get("type") == 1]
+    down_dist = [{"range": i.get("label"), "count": i.get("count")} for i in up_down_list if i.get("type") == 2]
+
+    return json.dumps({
+        "top_code": top_code,
+        "total_market_value": data.get("totalMarketAmount"),
+        "market_value_change_pct": data.get("totalMarketAmountRate"),
+        "total_deal_count": data.get("totalDealCount"),
+        "deal_count_change_pct": data.get("totalDealCountRate"),
+        "total_archive_count": data.get("totalArchiveCount"),
+        "up_count": data.get("upArchiveCount"),
+        "down_count": data.get("downArchiveCount"),
+        "up_distribution": up_dist,
+        "down_distribution": down_dist,
+    }, ensure_ascii=False)
+
+
+async def _get_archive_goods_listing(db: AsyncSession, **kwargs) -> str:
+    """获取藏品二级市场挂单列表"""
+    archive_id = _coerce_int(kwargs.get("archive_id"))
+    if archive_id is None:
+        return json.dumps({"error": "archive_id 无效"}, ensure_ascii=False)
+
+    page = kwargs.get("page", 1)
+    page_size = min(20, kwargs.get("page_size", 20))
+
+    resp = await crawler_client.post_safe(
+        "/h5/goods/archiveGoods",
+        {
+            "archiveId": str(archive_id),
+            "platformId": "741",
+            "active": "0",
+            "page": page,
+            "pageSize": page_size,
+            "sellStatus": 2,
+            "dealType": "",
+            "goodsType": "",
+            "isPayBond": "",
+            "startTime": "",
+            "endTime": "",
+            "fancyNumberType": "",
+        },
+    )
+    if not resp or resp.get("code") != 200:
+        return json.dumps({"error": "获取挂单列表失败"}, ensure_ascii=False)
+
+    data = resp.get("data", {})
+    if isinstance(data, list):
+        records = data
+        total = len(data)
+    else:
+        records = data.get("list") or data.get("records") or []
+        total = data.get("total") or len(records)
+
+    items = []
+    for record in records[:page_size]:
+        items.append({
+            "goods_no": record.get("goodsNo"),
+            "price": record.get("price"),
+            "sell_time": record.get("upTime") or record.get("sellTime"),
+            "goods_type": record.get("goodsTypeName") or record.get("goodsType"),
+        })
+
+    return json.dumps({
+        "archive_id": archive_id,
+        "total": total,
+        "items": items,
+        "link": _archive_link(archive_id),
+    }, ensure_ascii=False)
+
+
+async def _search_jingtan_sku(db: AsyncSession, **kwargs) -> str:
+    """搜索鲸探SKU百科"""
+    keyword = str(kwargs.get("keyword", "") or "").strip()
+    category = str(kwargs.get("category", "") or "").strip()
+    page = max(1, kwargs.get("page", 1))
+    page_size = min(50, kwargs.get("page_size", 20))
+
+    filters = []
+    if keyword:
+        filters.append(or_(
+            JingtanSkuWiki.sku_name.ilike(f"%{keyword}%"),
+            JingtanSkuWiki.author.ilike(f"%{keyword}%"),
+        ))
+    if category:
+        filters.append(or_(
+            JingtanSkuWiki.first_category_name.ilike(f"%{category}%"),
+            JingtanSkuWiki.second_category_name.ilike(f"%{category}%"),
+        ))
+
+    count_stmt = select(func.count()).select_from(JingtanSkuWiki)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    stmt = select(JingtanSkuWiki)
+    if filters:
+        stmt = stmt.where(*filters)
+    stmt = stmt.order_by(JingtanSkuWiki.sku_issue_time_ms.desc().nullslast()).offset((page - 1) * page_size).limit(page_size)
+    skus = (await db.execute(stmt)).scalars().all()
+
+    items = []
+    for sku in skus:
+        issue_time = None
+        if sku.sku_issue_time_ms:
+            try:
+                issue_time = datetime.fromtimestamp(sku.sku_issue_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+            except (OSError, ValueError):
+                pass
+        items.append({
+            "sku_id": sku.sku_id,
+            "name": sku.sku_name,
+            "author": sku.author,
+            "owner": sku.owner,
+            "first_category": sku.first_category_name,
+            "second_category": sku.second_category_name,
+            "quantity": sku.sku_quantity,
+            "issue_time": issue_time,
+        })
+
+    return json.dumps({"total": total, "page": page, "items": items}, ensure_ascii=False)
+
+
+async def _get_jingtan_sku_detail(db: AsyncSession, **kwargs) -> str:
+    """获取鲸探SKU详情"""
+    sku_id = str(kwargs.get("sku_id", "") or "").strip()
+    if not sku_id:
+        return json.dumps({"error": "sku_id 不能为空"}, ensure_ascii=False)
+
+    detail = (await db.execute(
+        select(JingtanSkuHomepageDetail).where(JingtanSkuHomepageDetail.sku_id == sku_id)
+    )).scalar_one_or_none()
+
+    if detail:
+        issue_time = None
+        if detail.sku_issue_time_ms:
+            try:
+                issue_time = datetime.fromtimestamp(detail.sku_issue_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+            except (OSError, ValueError):
+                pass
+        return json.dumps({
+            "sku_id": detail.sku_id,
+            "name": detail.sku_name,
+            "author": detail.author,
+            "owner": detail.owner,
+            "partner_name": detail.partner_name,
+            "description": (detail.sku_desc or "")[:500],
+            "quantity": detail.sku_quantity,
+            "quantity_type": detail.quantity_type,
+            "issue_time": issue_time,
+            "collect_count": detail.collect_num,
+            "comment_count": detail.comment_num,
+            "producer_name": detail.producer_name,
+            "certification_name": detail.certification_name,
+            "produce_amount": detail.produce_amount,
+            "source": "db",
+        }, ensure_ascii=False)
+
+    wiki = (await db.execute(
+        select(JingtanSkuWiki).where(JingtanSkuWiki.sku_id == sku_id)
+    )).scalar_one_or_none()
+
+    if wiki:
+        issue_time = None
+        if wiki.sku_issue_time_ms:
+            try:
+                issue_time = datetime.fromtimestamp(wiki.sku_issue_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+            except (OSError, ValueError):
+                pass
+        return json.dumps({
+            "sku_id": wiki.sku_id,
+            "name": wiki.sku_name,
+            "author": wiki.author,
+            "owner": wiki.owner,
+            "partner_name": wiki.partner_name,
+            "first_category": wiki.first_category_name,
+            "second_category": wiki.second_category_name,
+            "quantity": wiki.sku_quantity,
+            "issue_time": issue_time,
+            "source": "wiki",
+        }, ensure_ascii=False)
+
+    return json.dumps({"error": f"SKU {sku_id} 不存在"}, ensure_ascii=False)
+
+
+async def _get_market_history(db: AsyncSession, **kwargs) -> str:
+    """查询历史市场快照"""
+    snapshot_type = kwargs.get("snapshot_type", "plane")
+    date_str = kwargs.get("date", "")
+    compare_date_str = kwargs.get("compare_date")
+    limit = min(50, max(1, int(kwargs.get("limit", 20))))
+
+    try:
+        target_date = date_type.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        return json.dumps({"error": "date 格式无效，请使用 YYYY-MM-DD"}, ensure_ascii=False)
+
+    compare_date = None
+    if compare_date_str:
+        try:
+            compare_date = date_type.fromisoformat(compare_date_str)
+        except ValueError:
+            pass
+
+    if snapshot_type == "plane":
+        plane_code = kwargs.get("plane_code")
+        stmt = select(MarketPlaneSnapshot).where(MarketPlaneSnapshot.stat_date == target_date)
+        if plane_code:
+            stmt = stmt.where(MarketPlaneSnapshot.plane_code == plane_code)
+        stmt = stmt.order_by(MarketPlaneSnapshot.total_market_value.desc().nullslast()).limit(limit)
+        snapshots = (await db.execute(stmt)).scalars().all()
+
+        items = [{
+            "name": s.plane_name, "code": s.plane_code,
+            "avg_price_change": s.avg_price, "deal_count": s.deal_count,
+            "shelves_rate": s.shelves_rate, "market_value": s.total_market_value,
+        } for s in snapshots]
+
+        compare_items = None
+        if compare_date:
+            c_stmt = select(MarketPlaneSnapshot).where(MarketPlaneSnapshot.stat_date == compare_date)
+            if plane_code:
+                c_stmt = c_stmt.where(MarketPlaneSnapshot.plane_code == plane_code)
+            c_stmt = c_stmt.order_by(MarketPlaneSnapshot.total_market_value.desc().nullslast()).limit(limit)
+            compare_items = [{
+                "name": s.plane_name, "avg_price_change": s.avg_price,
+                "deal_count": s.deal_count, "market_value": s.total_market_value,
+            } for s in (await db.execute(c_stmt)).scalars().all()]
+
+        return json.dumps({
+            "type": "plane", "date": str(target_date), "items": items,
+            "compare_date": str(compare_date) if compare_date else None,
+            "compare_items": compare_items,
+        }, ensure_ascii=False)
+
+    elif snapshot_type == "ip":
+        stmt = (
+            select(MarketIPSnapshot)
+            .where(MarketIPSnapshot.stat_date == target_date)
+            .order_by(MarketIPSnapshot.rank.asc().nullslast())
+            .limit(limit)
+        )
+        snapshots = (await db.execute(stmt)).scalars().all()
+
+        items = [{
+            "rank": s.rank, "name": s.name,
+            "archive_count": s.archive_count, "market_value": s.market_amount,
+            "market_value_change": s.market_amount_rate, "hot": s.hot,
+            "deal_count": s.deal_count, "avg_price": s.avg_amount,
+        } for s in snapshots]
+
+        compare_items = None
+        if compare_date:
+            c_stmt = (
+                select(MarketIPSnapshot)
+                .where(MarketIPSnapshot.stat_date == compare_date)
+                .order_by(MarketIPSnapshot.rank.asc().nullslast())
+                .limit(limit)
+            )
+            compare_items = [{
+                "rank": s.rank, "name": s.name,
+                "market_value": s.market_amount, "deal_count": s.deal_count,
+            } for s in (await db.execute(c_stmt)).scalars().all()]
+
+        return json.dumps({
+            "type": "ip", "date": str(target_date), "items": items,
+            "compare_date": str(compare_date) if compare_date else None,
+            "compare_items": compare_items,
+        }, ensure_ascii=False)
+
+    elif snapshot_type == "archive":
+        top_code = kwargs.get("top_code", "")
+        stmt = select(MarketArchiveSnapshot).where(MarketArchiveSnapshot.stat_date == target_date)
+        if top_code:
+            stmt = stmt.where(MarketArchiveSnapshot.top_code == top_code)
+        stmt = stmt.order_by(MarketArchiveSnapshot.rank.asc().nullslast()).limit(limit)
+        snapshots = (await db.execute(stmt)).scalars().all()
+
+        items = [{
+            "rank": s.rank, "name": s.archive_name, "top_name": s.top_name,
+            "deal_count": s.deal_count, "market_value": s.market_amount,
+            "market_value_change": s.market_amount_rate,
+            "min_price": s.min_amount, "avg_price": s.avg_amount,
+            "deal_amount": s.deal_amount, "publish_count": s.publish_count,
+            "link": _archive_link(s.archive_id, s.platform_id),
+        } for s in snapshots]
+
+        compare_items = None
+        if compare_date:
+            c_stmt = select(MarketArchiveSnapshot).where(MarketArchiveSnapshot.stat_date == compare_date)
+            if top_code:
+                c_stmt = c_stmt.where(MarketArchiveSnapshot.top_code == top_code)
+            c_stmt = c_stmt.order_by(MarketArchiveSnapshot.rank.asc().nullslast()).limit(limit)
+            compare_items = [{
+                "rank": s.rank, "name": s.archive_name,
+                "market_value": s.market_amount, "min_price": s.min_amount,
+                "deal_count": s.deal_count,
+            } for s in (await db.execute(c_stmt)).scalars().all()]
+
+        return json.dumps({
+            "type": "archive", "date": str(target_date), "top_code": top_code or "all",
+            "items": items,
+            "compare_date": str(compare_date) if compare_date else None,
+            "compare_items": compare_items,
+        }, ensure_ascii=False)
+
+    return json.dumps({"error": f"不支持的快照类型: {snapshot_type}"}, ensure_ascii=False)
+
+
+async def _get_launch_detail(db: AsyncSession, **kwargs) -> str:
+    """获取发行详情"""
+    launch_id = _coerce_int(kwargs.get("launch_id"))
+    source_id = kwargs.get("source_id")
+
+    if launch_id is None and not source_id:
+        return json.dumps({"error": "launch_id 或 source_id 至少提供一个"}, ensure_ascii=False)
+
+    if launch_id:
+        stmt = (
+            select(LaunchCalendar)
+            .options(selectinload(LaunchCalendar.platform), selectinload(LaunchCalendar.ip), selectinload(LaunchCalendar.detail))
+            .where(LaunchCalendar.id == launch_id)
+        )
+    else:
+        stmt = (
+            select(LaunchCalendar)
+            .options(selectinload(LaunchCalendar.platform), selectinload(LaunchCalendar.ip), selectinload(LaunchCalendar.detail))
+            .where(LaunchCalendar.source_id == source_id)
+        )
+
+    launch = (await db.execute(stmt)).unique().scalar_one_or_none()
+    if not launch:
+        return json.dumps({"error": "发行记录不存在"}, ensure_ascii=False)
+
+    data = {
+        "id": launch.id,
+        "name": launch.name,
+        "sell_time": launch.sell_time.strftime("%Y-%m-%d %H:%M") if launch.sell_time else None,
+        "price": launch.price,
+        "count": launch.count,
+        "platform": launch.platform.name if launch.platform else None,
+        "ip": launch.ip.ip_name if launch.ip else None,
+        "is_priority_purchase": launch.is_priority_purchase,
+        "priority_purchase_num": launch.priority_purchase_num,
+    }
+
+    if launch.detail:
+        detail = launch.detail
+        data.update({
+            "priority_purchase_time": detail.priority_purchase_time.strftime("%Y-%m-%d %H:%M") if detail.priority_purchase_time else None,
+            "context_condition": detail.context_condition,
+            "status": detail.status,
+        })
+
+    return json.dumps(data, ensure_ascii=False)
+
+
 # ── 执行器映射 ────────────────────────────────────────
 
 EXECUTORS = {
@@ -1151,6 +1651,14 @@ EXECUTORS = {
     "get_ip_ranking": _get_ip_ranking,
     "get_plane_list": _get_plane_list,
     "get_sector_archives": _get_sector_archives,
+    "get_market_overview": _get_market_overview,
+    "get_plane_census": _get_plane_census,
+    "get_top_census": _get_top_census,
+    "get_archive_goods_listing": _get_archive_goods_listing,
+    "search_jingtan_sku": _search_jingtan_sku,
+    "get_jingtan_sku_detail": _get_jingtan_sku_detail,
+    "get_market_history": _get_market_history,
+    "get_launch_detail": _get_launch_detail,
 }
 
 

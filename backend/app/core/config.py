@@ -52,8 +52,8 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "qwen-plus"
     LLM_MAX_TOKENS: int = 6144
     LLM_TEMPERATURE: float = 0.2
-    AGENT_MAX_HISTORY: int = 20
-    AGENT_MAX_TOOL_ROUNDS: int = 6
+    AGENT_MAX_HISTORY: int = 16
+    AGENT_MAX_TOOL_ROUNDS: int = 5
 
     # WeChat Mini Program (微信小程序，已有配置)
     APP_ID: str = ""

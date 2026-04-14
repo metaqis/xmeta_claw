@@ -364,6 +364,188 @@ TOOLS.extend([
     },
 ])
 
+# ── 市场概况 / 历史快照 / 深度统计 / 鲸探SKU / 挂单 ──
+
+TOOLS.extend([
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_overview",
+            "description": "获取今日或指定日期的市场全局概况：全市场总市值、总成交额、成交笔数、最热板块、最热IP等。适合'今天市场怎么样'、'市场概况'、'大盘'类问题。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "日期，格式 YYYY-MM-DD，默认今日",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_plane_census",
+            "description": "获取某板块的详细成交统计：总市值、市值涨跌、成交量、涨跌分布（多少藏品涨、多少跌、各涨跌幅区间分布）。需先通过 get_plane_list 获取板块代码。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "plane_code": {
+                        "type": "string",
+                        "description": "板块代码，如 '00000001'(字画)，从 get_plane_list 获取",
+                    },
+                    "time_type": {
+                        "type": "integer",
+                        "description": "时间类型：0=今日，默认0",
+                    },
+                },
+                "required": ["plane_code"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_top_census",
+            "description": "获取某行情分类的详细成交统计：总市值、市值涨跌、成交量、涨跌分布。需先通过 get_market_categories 获取 topCode。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "top_code": {
+                        "type": "string",
+                        "description": "分类代码，如 '759475'（鲸探50）",
+                    },
+                    "time_type": {
+                        "type": "integer",
+                        "description": "时间类型：0=今日，默认0",
+                    },
+                },
+                "required": ["top_code"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_archive_goods_listing",
+            "description": "查看某藏品在二级市场的实时挂单列表（在售商品），可查看最低价挂单、在售数量、各编号价格。适合'现在卖多少钱'、'挂单情况'、'二级市场'等问题。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "archive_id": {
+                        "type": "integer",
+                        "description": "藏品ID（数字）",
+                    },
+                    "page": {"type": "integer", "description": "页码，默认1"},
+                    "page_size": {"type": "integer", "description": "每页数量，默认20"},
+                },
+                "required": ["archive_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_jingtan_sku",
+            "description": "搜索鲸探SKU百科数据：按名称、作者、分类搜索。适合查询藏品官方发行信息、作者、发行量、分类等百科数据。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "搜索关键词，匹配SKU名称或作者",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "按一级分类名称筛选",
+                    },
+                    "page": {"type": "integer", "description": "页码，默认1"},
+                    "page_size": {"type": "integer", "description": "每页数量，默认20"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_jingtan_sku_detail",
+            "description": "获取鲸探SKU详情：包括名称、作者、发行方、描述、收藏数、评论数、发行量等丰富信息。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sku_id": {
+                        "type": "string",
+                        "description": "SKU ID",
+                    },
+                },
+                "required": ["sku_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_history",
+            "description": "查询历史市场快照数据（板块/IP/藏品排名的历史记录）。可查看某日期的板块排名、IP排名或分类排名快照，也可对比两个日期的数据变化。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "snapshot_type": {
+                        "type": "string",
+                        "enum": ["plane", "ip", "archive"],
+                        "description": "快照类型：plane=板块, ip=IP方, archive=藏品排名",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "查询日期，格式 YYYY-MM-DD",
+                    },
+                    "compare_date": {
+                        "type": "string",
+                        "description": "对比日期，格式 YYYY-MM-DD，可选",
+                    },
+                    "top_code": {
+                        "type": "string",
+                        "description": "分类代码（仅当 snapshot_type=archive 时需要）",
+                    },
+                    "plane_code": {
+                        "type": "string",
+                        "description": "板块代码（仅当 snapshot_type=plane 时可选筛选）",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "返回记录数，默认20",
+                    },
+                },
+                "required": ["snapshot_type", "date"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_launch_detail",
+            "description": "获取某个发行记录的详情：优先购资格条件、优先购时间、发行状态等。需要先知道具体发行记录的ID。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "launch_id": {
+                        "type": "integer",
+                        "description": "发行日历记录的数据库ID",
+                    },
+                    "source_id": {
+                        "type": "string",
+                        "description": "来源ID（原始接口中的id），可替代 launch_id",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+])
+
 TOOL_NAME_MAP = {
     "resolve_entities": "实体解析",
     "search_archives": "搜索藏品",
@@ -383,4 +565,12 @@ TOOL_NAME_MAP = {
     "get_ip_ranking": "IP排行",
     "get_plane_list": "板块列表",
     "get_sector_archives": "板块交易",
+    "get_market_overview": "市场概况",
+    "get_plane_census": "板块涨跌统计",
+    "get_top_census": "分类涨跌统计",
+    "get_archive_goods_listing": "挂单列表",
+    "search_jingtan_sku": "鲸探SKU搜索",
+    "get_jingtan_sku_detail": "鲸探SKU详情",
+    "get_market_history": "历史快照",
+    "get_launch_detail": "发行详情",
 }
