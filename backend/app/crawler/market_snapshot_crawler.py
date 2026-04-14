@@ -1,6 +1,8 @@
 """市场快照爬虫 — 每日 23:50 执行，抓取板块/IP/热门藏品三维数据并写入快照表"""
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from typing import Callable, Awaitable, Optional
+
+_BEIJING = timezone(timedelta(hours=8))
 
 from loguru import logger
 from sqlalchemy import select, delete, func
@@ -466,7 +468,7 @@ async def run_market_snapshot(
 ) -> dict:
     """执行完整的市场快照流程，返回各步骤写入数量"""
     if stat_date is None:
-        stat_date = datetime.now(timezone.utc).date()
+        stat_date = datetime.now(_BEIJING).date()
 
     async def _log(msg: str):
         logger.info(msg)

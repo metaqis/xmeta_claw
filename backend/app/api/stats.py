@@ -2,6 +2,8 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
+_BEIJING = timezone(timedelta(hours=8))
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -86,7 +88,7 @@ async def get_dashboard(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(_BEIJING)
     today_date = now.date()
     start_date = (now - timedelta(days=days)).date()
 

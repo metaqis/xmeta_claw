@@ -3,6 +3,8 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
+_BEIJING = timezone(timedelta(hours=8))
+
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -165,7 +167,7 @@ async def get_daily_summaries(
     _user=Depends(get_current_user),
 ):
     """查询全市场每日汇总趋势（用于折线图）"""
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(_BEIJING).date()
     end_date = _parse_date(end, today)
     start_date = _parse_date(start, today - timedelta(days=29))
 

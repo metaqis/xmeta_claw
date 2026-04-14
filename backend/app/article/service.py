@@ -4,6 +4,8 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+_BEIJING = timezone(timedelta(hours=8))
+
 from loguru import logger
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +35,7 @@ async def generate_article(
     生成文章的完整流程：数据分析 → 图表生成 → AI 写作 → 存库
     article_type: daily / weekly / monthly
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(_BEIJING)
     skill = get_skill(article_type)
 
     # 1) 获取分析数据

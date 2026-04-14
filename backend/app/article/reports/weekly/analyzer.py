@@ -2,6 +2,8 @@
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+_BEIJING = timezone(timedelta(hours=8))
+
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +15,7 @@ async def get_weekly_data(db: AsyncSession, end_date: str | None = None) -> dict
     if end_date:
         end_obj = datetime.strptime(end_date, "%Y-%m-%d")
     else:
-        end_obj = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_obj = datetime.now(_BEIJING).replace(hour=0, minute=0, second=0, microsecond=0)
 
     weekday   = end_obj.weekday()
     week_start = end_obj - timedelta(days=weekday)

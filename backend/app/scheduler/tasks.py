@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone, timedelta
 from typing import Any, Awaitable, Callable, Dict, Optional
 
+_BEIJING = timezone(timedelta(hours=8))
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -46,7 +48,7 @@ async def _log_run(db, run_id: int, level: str, message: str):
 
 
 async def task_today_calendar_update(db, run_id: int):
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(_BEIJING).strftime("%Y-%m-%d")
     await _log_run(db, run_id, "info", f"开始今日日历强制更新: {today}")
 
     fetched, upserted = await crawl_calendar_for_date_stats(db, today, force_update=True)
@@ -60,7 +62,7 @@ async def task_today_calendar_update(db, run_id: int):
 
 
 async def task_forward_10d_calendar_update(db, run_id: int):
-    today = datetime.now(timezone.utc)
+    today = datetime.now(_BEIJING)
     start = (today + timedelta(days=1)).strftime("%Y-%m-%d")
     end = (today + timedelta(days=10)).strftime("%Y-%m-%d")
     await _log_run(db, run_id, "info", f"开始未来10天日历更新: {start} ~ {end}")
@@ -219,7 +221,7 @@ async def task_jingtan_detail_around_max(db, run_id: int):
 
 async def task_article_daily(db, run_id: int):
     await _log_run(db, run_id, "info", "开始生成每日文章")
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(_BEIJING).strftime("%Y-%m-%d")
     article = await generate_article(db, "daily", today)
     await _log_run(db, run_id, "info", f"每日文章生成完成: id={article.id} title={article.title}")
 
@@ -232,7 +234,7 @@ async def task_article_weekly(db, run_id: int):
 
 async def task_article_monthly(db, run_id: int):
     await _log_run(db, run_id, "info", "开始生成每月文章")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(_BEIJING)
     # 生成上个月的月报
     if now.month == 1:
         y, m = now.year - 1, 12
