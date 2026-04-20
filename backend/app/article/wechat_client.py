@@ -96,7 +96,7 @@ class WeChatMPClient:
         article = {
             "title": title,
             "author": author,
-            "digest": digest[:120] if digest else "",
+            "digest": digest[:54] if digest else "",
             "content": content_html,
             "thumb_media_id": cover_media_id,
             "need_open_comment": 1,

@@ -41,6 +41,8 @@ def build_monthly_prompt(data: dict, available_charts: list[str]) -> str:
 
 ## 可用图表: {', '.join(available_charts)}
 
+**重要：文章标题（第一行 `# 标题`）不得超过64个字符（含标点符号和空格），格式为「数藏月报·月份｜核心数据摘要」。**
+
 请撰写一篇 1200-2500 字的数藏月报文章，包含：
 1. 月度概要（核心数据亮点）
 2. 各周数据对比分析（结合图表）

@@ -35,6 +35,8 @@ def build_weekly_prompt(data: dict, available_charts: list[str]) -> str:
 
 ## 可用图表: {', '.join(available_charts)}
 
+**重要：文章标题（第一行 `# 标题`）不得超过64个字符（含标点符号和空格），格式为「数藏周报·日期范围｜核心数据摘要」。**
+
 请撰写一篇 1000-2000 字的数藏周报文章，包含：
 1. 本周概要（核心亮点数据）
 2. 每日发行趋势分析（结合图表）
