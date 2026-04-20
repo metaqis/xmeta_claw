@@ -94,7 +94,7 @@ async def generate_article_content(
             {"role": "user", "content": user_prompt},
         ],
         max_tokens=settings.LLM_MAX_TOKENS,
-        temperature=0.3,   # 降低温度（原为0.4），减少夸张性表达和数值发挥
+        temperature=0.2,   # 低温度：确保输出克制专业，减少夸张性表达和数值发挥
     )
     content = response.choices[0].message.content or ""
 

@@ -14,6 +14,11 @@ _CJK_FONT_PATHS = [
     # macOS 系统字体（STHeiti / PingFang 私有字体用 .ttc 文件）
     "/System/Library/Fonts/STHeiti Medium.ttc",
     "/System/Library/Fonts/STHeiti Light.ttc",
+    # Windows 系统字体
+    "C:/Windows/Fonts/msyh.ttc",        # 微软雅黑
+    "C:/Windows/Fonts/msyhbd.ttc",      # 微软雅黑 Bold
+    "C:/Windows/Fonts/simhei.ttf",      # 黑体
+    "C:/Windows/Fonts/simsun.ttc",      # 宋体
     # Linux 常见中文字体
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",

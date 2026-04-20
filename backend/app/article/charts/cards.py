@@ -345,9 +345,9 @@ def generate_launch_grid(
                 draw.text((ax_ + max(0, (arch_cell_w - ntw) // 2), ay_ + THUMB_SZ + 4),
                           name_txt, fill=C_DARK, font=FT[11])
 
-                mp   = ca.get("min_price") or 0
+                mp   = ca.get("live_min_price") or ca.get("min_price") or 0
                 deal = ca.get("deal_count") or 0
-                sell = ca.get("selling_count") or 0
+                sell = ca.get("live_total") or ca.get("selling_count") or 0
                 if mp:
                     price_txt = f"¥{mp:.1f}"
                     deal_txt  = f" 成交{deal}" if deal else (f" 售{sell}" if sell else "")
