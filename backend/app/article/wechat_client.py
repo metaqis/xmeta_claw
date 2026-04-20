@@ -93,10 +93,25 @@ class WeChatMPClient:
         author: str = "鲸探数据平台",
     ) -> str:
         token = await self.get_access_token()
+        # 微信公众号字段限制（官方文档）:
+        # title ≤ 32字, author ≤ 16字, digest ≤ 128字, content < 2万字符 & < 1MB
+        safe_title = title[:32]
+        safe_digest = digest[:128] if digest else ""
+        safe_author = author[:16]
+        content_bytes = len(content_html.encode("utf-8")) if content_html else 0
+        if content_bytes > 1_000_000:
+            logger.warning(f"content 大小 {content_bytes} 字节超过 1MB 限制，将被截断")
+        if len(content_html) > 20000:
+            logger.warning(f"content 长度 {len(content_html)} 字符超过 2万字符限制")
+        logger.info(
+            f"草稿参数: title={len(safe_title)}字/{repr(safe_title)}, "
+            f"digest={len(safe_digest)}字, author={len(safe_author)}字, "
+            f"content={len(content_html)}字符/{content_bytes}字节"
+        )
         article = {
-            "title": title,
-            "author": author,
-            "digest": digest[:54] if digest else "",
+            "title": safe_title,
+            "author": safe_author,
+            "digest": safe_digest,
             "content": content_html,
             "thumb_media_id": cover_media_id,
             "need_open_comment": 1,
@@ -109,7 +124,11 @@ class WeChatMPClient:
         )
         data = resp.json()
         if "media_id" not in data:
-            raise RuntimeError(f"创建草稿失败: {data}")
+            raise RuntimeError(
+                f"创建草稿失败: {data} | "
+                f"参数: title={len(safe_title)}字, digest={len(safe_digest)}字, "
+                f"content={len(content_html)}字符/{content_bytes}字节"
+            )
         logger.info(f"草稿已创建: media_id={data['media_id']}")
         return data["media_id"]
 

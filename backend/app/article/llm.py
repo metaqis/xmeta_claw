@@ -112,9 +112,9 @@ async def generate_article_content(
         date_label = data.get("date") or data.get("start_date") or data.get("month_label", "")
         title = f"{type_names.get(article_type, '数藏分析')} · {date_label}"
 
-    # 微信公众号标题上限 64 字符，硬截断保底
-    if len(title) > 64:
-        title = title[:63] + "…"
+    # 微信公众号标题上限 32 字（官方文档），硬截断保底
+    if len(title) > 32:
+        title = title[:31] + "…"
 
     # ── 摘要生成（第三次 LLM 调用，轻量）──────────────────────────────────────
     summary_resp = await client.chat.completions.create(
@@ -122,13 +122,13 @@ async def generate_article_content(
         messages=[
             {
                 "role": "system",
-                "content": "请用一句话（不超过50字）概括以下文章的核心内容，作为微信公众号文章的摘要。仅输出摘要本身，不要任何前缀。",
+                "content": "请用一句话（不超过120字）概括以下文章的核心内容，作为微信公众号文章的摘要。仅输出摘要本身，不要任何前缀。",
             },
             {"role": "user", "content": content[:3000]},
         ],
         max_tokens=200,
         temperature=0.2,
     )
-    summary = (summary_resp.choices[0].message.content or "").strip()[:54]
+    summary = (summary_resp.choices[0].message.content or "").strip()[:128]
 
     return {"title": title, "markdown": content, "summary": summary}
