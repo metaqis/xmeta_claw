@@ -70,17 +70,31 @@ export interface JingtanSkuWikiListResponse {
   items: JingtanSkuWikiItem[]
 }
 
+export interface JingtanSkuWikiOptionsResponse {
+  items: string[]
+}
+
 export interface JingtanSkuWikiListParams {
   search?: string
+  author?: string
+  owner?: string
   first_category?: string
   second_category?: string
   page?: number
   page_size?: number
 }
 
+export type JingtanSkuWikiOptionField = 'author' | 'owner'
+
 export const jingtanSkuWikiApi = {
   list: (params: JingtanSkuWikiListParams): Promise<JingtanSkuWikiListResponse> =>
     request.get('/jingtan/sku-wikis', { params }),
+  options: (
+    field: JingtanSkuWikiOptionField,
+    q?: string,
+    limit = 20,
+  ): Promise<JingtanSkuWikiOptionsResponse> =>
+    request.get('/jingtan/sku-wikis/options', { params: { field, q, limit } }),
   detail: (skuId: string): Promise<JingtanSkuWikiDetail> => request.get(`/jingtan/sku-wikis/${skuId}`),
 }
 

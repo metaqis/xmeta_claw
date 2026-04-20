@@ -70,6 +70,10 @@ class JingtanSkuWikiListResponse(BaseModel):
     items: list[JingtanSkuWikiItem]
 
 
+class JingtanSkuWikiOptionsResponse(BaseModel):
+    items: list[str]
+
+
 class JingtanSkuHomepageDetailItem(BaseModel):
     sku_id: str
     sku_name: str
@@ -117,9 +121,46 @@ class JingtanSkuWikiDetailResponse(JingtanSkuWikiItem):
     homepage_detail: Optional[JingtanSkuHomepageDetailItem] = None
 
 
+@router.get("/sku-wikis/options", response_model=JingtanSkuWikiOptionsResponse)
+async def list_sku_wiki_options(
+    field: str = Query(..., pattern="^(author|owner)$"),
+    q: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    wiki_column = JingtanSkuWiki.author if field == "author" else JingtanSkuWiki.owner
+    detail_column = JingtanSkuHomepageDetail.author if field == "author" else JingtanSkuHomepageDetail.owner
+
+    keyword = (q or "").strip()
+    like = f"%{keyword}%" if keyword else None
+
+    wiki_query = select(wiki_column).where(wiki_column.is_not(None))
+    detail_query = select(detail_column).where(detail_column.is_not(None))
+    if like:
+        wiki_query = wiki_query.where(wiki_column.ilike(like))
+        detail_query = detail_query.where(detail_column.ilike(like))
+
+    wiki_rows = await db.execute(wiki_query.limit(limit * 2))
+    detail_rows = await db.execute(detail_query.limit(limit * 2))
+
+    options = set()
+    for value in wiki_rows.scalars().all() + detail_rows.scalars().all():
+        if not value:
+            continue
+        normalized = value.strip()
+        if normalized:
+            options.add(normalized)
+
+    items = sorted(options)[:limit]
+    return JingtanSkuWikiOptionsResponse(items=items)
+
+
 @router.get("/sku-wikis", response_model=JingtanSkuWikiListResponse)
 async def list_sku_wikis(
     search: Optional[str] = None,
+    author: Optional[str] = None,
+    owner: Optional[str] = None,
     first_category: Optional[str] = None,
     second_category: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -127,8 +168,14 @@ async def list_sku_wikis(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    query = select(JingtanSkuWiki)
-    count_query = select(func.count(JingtanSkuWiki.sku_id))
+    query = select(JingtanSkuWiki).outerjoin(
+        JingtanSkuHomepageDetail,
+        JingtanSkuHomepageDetail.sku_id == JingtanSkuWiki.sku_id,
+    )
+    count_query = select(func.count(JingtanSkuWiki.sku_id)).select_from(JingtanSkuWiki).outerjoin(
+        JingtanSkuHomepageDetail,
+        JingtanSkuHomepageDetail.sku_id == JingtanSkuWiki.sku_id,
+    )
 
     if first_category:
         query = query.where(JingtanSkuWiki.first_category == first_category)
@@ -136,20 +183,34 @@ async def list_sku_wikis(
     if second_category:
         query = query.where(JingtanSkuWiki.second_category == second_category)
         count_query = count_query.where(JingtanSkuWiki.second_category == second_category)
+    if author:
+        author_like = f"%{author}%"
+        author_filter = (
+            JingtanSkuWiki.author.ilike(author_like)
+            | JingtanSkuHomepageDetail.author.ilike(author_like)
+        )
+        query = query.where(author_filter)
+        count_query = count_query.where(author_filter)
+    if owner:
+        owner_like = f"%{owner}%"
+        owner_filter = (
+            JingtanSkuWiki.owner.ilike(owner_like)
+            | JingtanSkuHomepageDetail.owner.ilike(owner_like)
+        )
+        query = query.where(owner_filter)
+        count_query = count_query.where(owner_filter)
     if search:
         like = f"%{search}%"
-        query = query.where(
+        search_filter = (
             JingtanSkuWiki.sku_id.ilike(like)
             | JingtanSkuWiki.sku_name.ilike(like)
             | JingtanSkuWiki.author.ilike(like)
             | JingtanSkuWiki.owner.ilike(like)
+            | JingtanSkuHomepageDetail.author.ilike(like)
+            | JingtanSkuHomepageDetail.owner.ilike(like)
         )
-        count_query = count_query.where(
-            JingtanSkuWiki.sku_id.ilike(like)
-            | JingtanSkuWiki.sku_name.ilike(like)
-            | JingtanSkuWiki.author.ilike(like)
-            | JingtanSkuWiki.owner.ilike(like)
-        )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
 
     query = query.order_by(JingtanSkuWiki.sku_issue_time_ms.desc())
 

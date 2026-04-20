@@ -53,6 +53,10 @@ export default function JingtanSkuWikiPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState<string | undefined>(undefined)
+  const [author, setAuthor] = useState<string | undefined>(undefined)
+  const [owner, setOwner] = useState<string | undefined>(undefined)
+  const [authorKeyword, setAuthorKeyword] = useState('')
+  const [ownerKeyword, setOwnerKeyword] = useState('')
   const [firstCategory, setFirstCategory] = useState<string | undefined>(undefined)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -60,13 +64,25 @@ export default function JingtanSkuWikiPage() {
   const [runDetailLoading, setRunDetailLoading] = useState(false)
 
   const params = useMemo(
-    () => ({ page, page_size: pageSize, search, first_category: firstCategory }),
-    [page, pageSize, search, firstCategory],
+    () => ({ page, page_size: pageSize, search, author, owner, first_category: firstCategory }),
+    [page, pageSize, search, author, owner, firstCategory],
   )
 
   const { data, isFetching, refetch } = useQuery({
     queryKey: ['jingtanSkuWikis', params],
     queryFn: () => jingtanSkuWikiApi.list(params),
+  })
+
+  const { data: authorOptionsData, isFetching: authorOptionsLoading } = useQuery({
+    queryKey: ['jingtanSkuWikiOptions', 'author', authorKeyword],
+    queryFn: () => jingtanSkuWikiApi.options('author', authorKeyword || undefined, 50),
+    enabled: authorKeyword.trim().length > 0,
+  })
+
+  const { data: ownerOptionsData, isFetching: ownerOptionsLoading } = useQuery({
+    queryKey: ['jingtanSkuWikiOptions', 'owner', ownerKeyword],
+    queryFn: () => jingtanSkuWikiApi.options('owner', ownerKeyword || undefined, 50),
+    enabled: ownerKeyword.trim().length > 0,
   })
 
   const items = data?.items ?? []
@@ -133,6 +149,38 @@ export default function JingtanSkuWikiPage() {
               style={{ width: isMobile ? '100%' : 360 }}
               onSearch={(v) => {
                 setSearch(v || undefined)
+                setPage(1)
+              }}
+            />
+            <Select
+              showSearch
+              filterOption={false}
+              placeholder="作者（输入关键字后选择）"
+              allowClear
+              style={{ width: isMobile ? '100%' : 180 }}
+              value={author}
+              options={(authorOptionsData?.items ?? []).map((item) => ({ label: item, value: item }))}
+              loading={authorOptionsLoading}
+              notFoundContent={authorKeyword ? '无匹配项' : '输入关键词搜索'}
+              onSearch={(v) => setAuthorKeyword(v)}
+              onChange={(v) => {
+                setAuthor(v || undefined)
+                setPage(1)
+              }}
+            />
+            <Select
+              showSearch
+              filterOption={false}
+              placeholder="机构（输入公司关键字后选择）"
+              allowClear
+              style={{ width: isMobile ? '100%' : 180 }}
+              value={owner}
+              options={(ownerOptionsData?.items ?? []).map((item) => ({ label: item, value: item }))}
+              loading={ownerOptionsLoading}
+              notFoundContent={ownerKeyword ? '无匹配项' : '输入关键词搜索'}
+              onSearch={(v) => setOwnerKeyword(v)}
+              onChange={(v) => {
+                setOwner(v || undefined)
                 setPage(1)
               }}
             />
