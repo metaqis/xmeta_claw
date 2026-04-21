@@ -90,7 +90,7 @@ class WeChatMPClient:
         content_html: str,
         cover_media_id: str,
         digest: str = "",
-        author: str = "鲸探数据平台",
+        author: str = "metaclawbot",
     ) -> str:
         token = await self.get_access_token()
         # 微信公众号字段限制（官方文档）:

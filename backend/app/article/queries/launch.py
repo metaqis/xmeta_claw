@@ -13,6 +13,7 @@ async def get_launch_rows(db: AsyncSession, start, end):
         select(LaunchCalendar, Platform.name.label("platform_name"), IP.ip_name)
         .outerjoin(Platform, LaunchCalendar.platform_id == Platform.id)
         .outerjoin(IP, LaunchCalendar.ip_id == IP.id)
+        .where(LaunchCalendar.platform_id == 741)
         .where(LaunchCalendar.sell_time >= start)
         .where(LaunchCalendar.sell_time < end)
         .order_by(LaunchCalendar.sell_time)

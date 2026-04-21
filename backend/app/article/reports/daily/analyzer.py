@@ -166,6 +166,7 @@ async def _fetch_ip_last_launches(
             .where(
                 and_(
                     IP.ip_name == ipn,
+                    LaunchCalendar.platform_id == 741,
                     LaunchCalendar.sell_time < before_date,
                 )
             )

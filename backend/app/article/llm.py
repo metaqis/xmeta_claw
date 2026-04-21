@@ -122,7 +122,7 @@ async def generate_article_content(
         messages=[
             {
                 "role": "system",
-                "content": "请用一句话（不超过120字）概括以下文章的核心内容，作为微信公众号文章的摘要。仅输出摘要本身，不要任何前缀。",
+                "content": "请用一句话概括以下文章的核心内容，作为微信公众号文章的摘要。要求：只输出摘要本身，不加任何前缀；字数严格控制在128字以内（含标点）。",
             },
             {"role": "user", "content": content[:3000]},
         ],

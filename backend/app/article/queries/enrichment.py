@@ -162,6 +162,7 @@ async def get_ip_deep_analysis(
                 select(func.count(LaunchCalendar.id))
                 .join(IP, LaunchCalendar.ip_id == IP.id)
                 .where(IP.ip_name == ipn)
+                .where(LaunchCalendar.platform_id == 741)
             )
         ).scalar() or 0
 
@@ -172,6 +173,7 @@ async def get_ip_deep_analysis(
                 .where(
                     and_(
                         IP.ip_name == ipn,
+                        LaunchCalendar.platform_id == 741,
                         LaunchCalendar.sell_time >= thirty_ago,
                         LaunchCalendar.sell_time < date_obj,
                     )

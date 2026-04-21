@@ -48,6 +48,7 @@ async def get_monthly_data(db: AsyncSession, year: int, month: int) -> dict[str,
         .join(IP, LaunchCalendar.ip_id == IP.id)
         .where(LaunchCalendar.sell_time >= month_start)
         .where(LaunchCalendar.sell_time < month_end)
+        .where(LaunchCalendar.platform_id == 741)
         .group_by(IP.ip_name)
         .order_by(func.count(LaunchCalendar.id).desc())
         .limit(10)
@@ -59,6 +60,7 @@ async def get_monthly_data(db: AsyncSession, year: int, month: int) -> dict[str,
             select(func.count(Archive.archive_id))
             .where(Archive.issue_time >= month_start)
             .where(Archive.issue_time < month_end)
+            .where(Archive.platform_id == 741)
         )
     ).scalar() or 0
 
