@@ -1,5 +1,10 @@
 import request from './request'
 
+export interface PlatformOption {
+  id: number
+  name: string
+}
+
 export interface CalendarItem {
   id: number
   name: string
@@ -67,4 +72,5 @@ export const calendarApi = {
   list: (params: CalendarParams): Promise<CalendarListResponse> =>
     request.get('/calendar/', { params }),
   detail: (id: number): Promise<CalendarDetail> => request.get(`/calendar/${id}`),
+  platforms: (): Promise<PlatformOption[]> => request.get('/calendar/platforms'),
 }

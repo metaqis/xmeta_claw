@@ -16,6 +16,14 @@ from app.api.auth import get_current_user
 router = APIRouter(prefix="/calendar", tags=["发行日历"])
 
 
+class PlatformOption(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class CalendarItem(BaseModel):
     id: int
     name: str
@@ -67,6 +75,19 @@ def _html_to_text(value: Any) -> Optional[str]:
     text = html.unescape(text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip() or None
+
+
+@router.get("/platforms", response_model=list[PlatformOption])
+async def get_platforms(
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """获取所有平台列表，用于日历筛选下拉框"""
+    result = await db.execute(
+        select(Platform).order_by(Platform.id)
+    )
+    platforms = result.scalars().all()
+    return [PlatformOption(id=p.id, name=p.name) for p in platforms]
 
 
 def _parse_raw_detail(raw_json: Optional[str]) -> tuple[list[dict], list[dict]]:

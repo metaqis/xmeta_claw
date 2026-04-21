@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Card, Input, DatePicker, Row, Col, Grid, List, Tag, Image, Space, Drawer, Descriptions, Typography, Button } from 'antd'
+import { Table, Card, Input, DatePicker, Row, Col, Grid, List, Tag, Image, Space, Drawer, Descriptions, Typography, Button, Select } from 'antd'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
-import { calendarApi, CalendarItem, CalendarParams, CalendarDetail, CalendarRelatedArchiveItem } from '../../api/calendar'
+import { calendarApi, CalendarItem, CalendarParams, CalendarDetail, CalendarRelatedArchiveItem, PlatformOption } from '../../api/calendar'
 
 const { useBreakpoint } = Grid
 const { Text, Paragraph } = Typography
@@ -26,6 +26,11 @@ export default function CalendarPage() {
     queryKey: ['calendarDetail', selectedId],
     queryFn: () => calendarApi.detail(selectedId as number),
     enabled: selectedId != null && open,
+  })
+
+  const { data: platforms } = useQuery({
+    queryKey: ['calendarPlatforms'],
+    queryFn: () => calendarApi.platforms(),
   })
 
   const openDetail = (id: number) => {
@@ -174,7 +179,21 @@ export default function CalendarPage() {
               }
             />
           </Col>
-          <Col xs={24} sm={16} md={8}>
+          <Col xs={24} sm={8} md={6}>
+            <Select
+              allowClear
+              placeholder="选择平台"
+              style={{ width: '100%' }}
+              options={
+                platforms?.map((p: PlatformOption) => ({
+                  label: p.name,
+                  value: p.id,
+                })) || []
+              }
+              onChange={(v) => setParams((p) => ({ ...p, platform_id: v || undefined, page: 1 }))}
+            />
+          </Col>
+          <Col xs={24} sm={8} md={12}>
             <Input.Search
               placeholder="搜索藏品名称"
               allowClear
