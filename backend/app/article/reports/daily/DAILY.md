@@ -28,7 +28,7 @@ API 请求 (POST /articles/generate {type: "daily"})
    │       ├─ plane_census: 板块涨跌分布堆叠条形图
    │       ├─ top_archives: 分类Top5藏品均价涨跌对比
    │       ├─ ip_distribution: IP发行频次排行
-   │       └─ ip_deal_rank: IP成交量排行横向条形图
+   │       └─ ip_deal_rank: 昨日热门IP成交Top5蝴蝶图
    │
    ├─ [3] AI文章生成 ── llm.py（两阶段）
    │       ├─ 阶段1: 数据核实（temperature=0.1）→ JSON事实
@@ -70,10 +70,8 @@ API 请求 (POST /articles/generate {type: "daily"})
 **市场环比计算（Python侧预计算）：**
 - market_deal_change_pct = (昨日成交量 - 前日成交量) / 前日成交量 x 100
 
-**IP活跃度等级（固定阈值）：**
-- 近30天发行 >= 3次 → 密集
-- 近30天发行 1-2次 → 适中
-- 近30天发行 0次 → 稀缺
+**IP 发行频次（客观陈述，不做活跃度评级）：**
+- 历史总发行次数 + 近一年发行次数（不含今日）
 
 **市场趋势判断：**
 - deal_change_pct > +5% → 升温
@@ -105,7 +103,8 @@ API 请求 (POST /articles/generate {type: "daily"})
 | plane_deal_rank | Matplotlib横向条形 | top_planes | Top8板块成交量，颜色标注均价涨跌 |
 | plane_census | Matplotlib堆叠条形 | plane_census | 板块藏品上涨/下跌/持平分布 |
 | top_archives | Matplotlib横向条形 | top_archives | 按分类分组Top5藏品均价涨跌幅 |
-| ip_deal_rank | Matplotlib横向条形 | ip_deep_analysis | 昨日IP成交量排行Top12 |
+| hot_archives_top10 | Matplotlib综合卡片 | hot_archives_top10 | 全局Top10藏品成交量×均价涨跌×地板价 |
+| ip_deal_rank | Matplotlib 蝴蝶图 | ip_deep_analysis | 昨日热门IP成交Top5（左成交额、右成交笔数+环比）|
 
 ### 3.2 图表样式规范
 

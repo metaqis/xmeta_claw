@@ -6,6 +6,7 @@ from app.article.charts import (
     chart_market_overview,
     chart_plane_census,
     chart_top_archives,
+    chart_hot_archives_top10,
     chart_plane_deal_rank,
     chart_market_trend_line,
     chart_ip_deal_rank,
@@ -65,10 +66,13 @@ def generate_daily_charts(data: dict, output_dir: str) -> dict[str, str]:
         if p:
             charts["plane_census"] = p
 
-        # 分类 Top5 藏品均价涨跌
-        p = chart_top_archives(market.get("top_archives", []), output_dir)
+        # 分类 Top5 藏品均价涨跌（已被 hot_archives_top10 替代，不再生成）
+        # p = chart_top_archives(market.get("top_archives", []), output_dir)
+
+        # 全局 Top10 热门藏品综合卡片图（DAILY.md：热门藏品分析专用）
+        p = chart_hot_archives_top10(market.get("hot_archives_top10", []), output_dir)
         if p:
-            charts["top_archives"] = p
+            charts["hot_archives_top10"] = p
 
     # ── IP 成交量排行（来自 ip_deep_analysis 中的 market_snapshot 数据） ──────
     ip_snap_list: list[dict] = []

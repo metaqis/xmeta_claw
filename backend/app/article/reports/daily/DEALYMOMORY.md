@@ -86,7 +86,7 @@ API 触发
 | 字段 | 说明 |
 |------|------|
 | `total_launches` | 历史总发行次数 |
-| `recent_30d_launches` | 近30天发行次数（活跃度判据：≥3=密集，1-2=适中，0=稀缺）|
+| `recent_1y_launches` | 近一年发行次数（不含今日）|
 | `fans_count` | IP 粉丝数（来自 `IP` 表）|
 | `description` | IP 简介 |
 
@@ -167,7 +167,8 @@ API 触发
 | `plane_deal_rank` | 横向条形图 | `market["top_planes"]` | Top8 板块成交量排行 |
 | `plane_census` | 堆叠条形图 | `market["plane_census"]` | 板块藏品涨跌分布 |
 | `top_archives` | 条形图 | `market["top_archives"]` | 各分类 Top5 藏品均价涨跌幅 |
-| `ip_deal_rank` | 横向条形图 | `ip_deep_analysis[*]["market_snapshot"]["yesterday"]` | 昨日IP成交量排行 Top12 |
+| `hot_archives_top10` | 综合卡片图 | `market["hot_archives_top10"]` | 全局 Top10 热门藏品（成交量条形 × 均价涨跌染色 × 均价/地板价标签）|
+| `ip_deal_rank` | 蝴蝶图（双向横向条形）| `ip_deep_analysis[*]["market_snapshot"]["yesterday"]` | 昨日热门 IP 成交 Top 5（左侧成交额¥、右侧成交笔数+环比） |
 
 > `cover` 不计入 `available_charts`（封面不插入文章正文）。
 
@@ -291,7 +292,7 @@ user:   文章前3000字
 | 字段 | 来源 | 含义 |
 |------|------|------|
 | `total_launches` | LaunchCalendar | 历史总发行次数 |
-| `recent_30d_launches` | LaunchCalendar | 近30天发行次数 |
+| `recent_1y_launches` | LaunchCalendar | 近一年发行次数 |
 | `fans_count` | IP 表 | 粉丝数 |
 | `description` | IP 表 | IP简介 |
 | `owners[].name` | 含品数据聚合 | 发行主体名 |
@@ -312,8 +313,8 @@ A: `live_total` / `live_min_price` 在每次生成时调用 xmeta 实时 API 获
 **Q: 为什么要两阶段 LLM 调用？**  
 A: LLM 在直接撰写文章时容易自行推算溢价率、环比等数值并出错（幻觉）。阶段1用极低温度做「数据核实」，将关键数字固化为 JSON 事实，阶段2写作时强制引用，从根本上杜绝数值幻觉。
 
-**Q: IP 活跃度等级的判定标准？**  
-A: 基于近30天发行次数（不含今日）：≥3次 = 密集，1-2次 = 适中，0次 = 稀缺。
+**Q: IP 上次发行/作品数据缺失怎么处理？**  
+A: 当 `last_launch` 为 None（IP 仅在今日有发行记录）时，prompt 中不再注入"暂无记录"占位文本，writer 模板要求 LLM 直接跳过该行；若 `last_launch_time` 或 `last_launch_name` 任一为 null，整行省略。
 
 **Q: `market_snapshot` 数据缺失时怎么处理？**  
 A: `_fetch_ip_market_snapshots` 从 `MarketIPSnapshot` 查不到时返回空 dict，Prompt 中对应位置输出「暂无市场快照」，LLM 被明确要求不得编造。

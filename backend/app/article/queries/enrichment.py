@@ -150,10 +150,10 @@ async def get_ip_deep_analysis(
     date_obj,
 ) -> dict[str, dict]:
     """
-    对每个 IP 做深度画像：历史/近30天发行次数、粉丝数、简介。
+    对每个 IP 做深度画像：历史/近一年发行次数、粉丝数、简介。
     owners 字段由调用方（analyzer）注入。
     """
-    thirty_ago = date_obj - timedelta(days=30)
+    one_year_ago = date_obj - timedelta(days=365)
     result: dict[str, dict] = {}
 
     for ipn in ip_names[:8]:
@@ -166,7 +166,7 @@ async def get_ip_deep_analysis(
             )
         ).scalar() or 0
 
-        r30 = (
+        r1y = (
             await db.execute(
                 select(func.count(LaunchCalendar.id))
                 .join(IP, LaunchCalendar.ip_id == IP.id)
@@ -174,7 +174,7 @@ async def get_ip_deep_analysis(
                     and_(
                         IP.ip_name == ipn,
                         LaunchCalendar.platform_id == 741,
-                        LaunchCalendar.sell_time >= thirty_ago,
+                        LaunchCalendar.sell_time >= one_year_ago,
                         LaunchCalendar.sell_time < date_obj,
                     )
                 )
@@ -192,7 +192,7 @@ async def get_ip_deep_analysis(
 
         result[ipn] = {
             "total_launches": total,
-            "recent_30d_launches": r30,
+            "recent_1y_launches": r1y,
             "fans_count": (ip_row.fans_count or 0) if ip_row else 0,
             "description": (ip_row.description or "") if ip_row else "",
             "recent_archives": [],

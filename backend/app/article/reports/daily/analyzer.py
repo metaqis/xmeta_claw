@@ -195,7 +195,7 @@ async def get_daily_data(db: AsyncSession, target_date: str) -> dict[str, Any]:
       total_launches / total_supply / total_value / avg_price
       ip_distribution         — IP 发行分布（按发行次数降序）
       enriched_launches       — 含品增强列表（含品的 live_total/live_min_price 为实时API值）
-      ip_deep_analysis        — IP → {total_launches, recent_30d_launches, fans_count,
+      ip_deep_analysis        — IP → {total_launches, recent_1y_launches, fans_count,
                                        description, owners, last_launch, market_snapshot}
       market_analysis         — 行情快照（见 get_market_snapshot_data）
       market_deal_change_pct  — 市场成交量日环比 %（Python预计算）
@@ -259,7 +259,7 @@ async def get_daily_data(db: AsyncSession, target_date: str) -> dict[str, Any]:
     for ipn, owners in ip_owners_map.items():
         if ipn not in ip_deep:
             ip_deep[ipn] = {
-                "total_launches": 0, "recent_30d_launches": 0,
+                "total_launches": 0, "recent_1y_launches": 0,
                 "fans_count": 0, "description": "", "recent_archives": [],
             }
         ip_deep[ipn]["owners"] = [
