@@ -74,18 +74,18 @@ def generate_daily_charts(data: dict, output_dir: str) -> dict[str, str]:
         if p:
             charts["hot_archives_top10"] = p
 
-    # ── IP 成交量排行（来自 ip_deep_analysis 中的 market_snapshot 数据） ──────
-    ip_snap_list: list[dict] = []
-    for ip_name, ip_data in (data.get("ip_deep_analysis") or {}).items():
-        snap = (ip_data.get("market_snapshot") or {}).get("yesterday")
-        if snap:
-            ip_snap_list.append({
-                "ip_name": ip_name,
-                "deal_count": snap.get("deal_count") or 0,
-                "deal_count_rate": snap.get("deal_count_rate"),
-                "market_amount": snap.get("market_amount"),
-            })
-    if ip_snap_list:
+    # ── IP 成交量排行 Top5（来自 market_analysis.hot_ips_top5，全市场而非仅今日发行IP） ──
+    hot_ips = (market.get("hot_ips_top5") if market else None) or []
+    if hot_ips:
+        ip_snap_list = [
+            {
+                "ip_name": h.get("ip_name") or "",
+                "deal_count": h.get("deal_count") or 0,
+                "deal_count_rate": h.get("deal_count_rate"),
+                "market_amount": h.get("market_amount"),
+            }
+            for h in hot_ips
+        ]
         p = chart_ip_deal_rank(ip_snap_list, output_dir)
         if p:
             charts["ip_deal_rank"] = p

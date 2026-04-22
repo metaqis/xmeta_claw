@@ -503,6 +503,27 @@ async def get_market_snapshot_data(db: AsyncSession, target_date: datetime) -> d
         for r in hot_top10_rows
     ]
 
+    # ── 全局昨日成交量 Top5 IP（与今日是否发行无关，用于「热门IP成交Top5」分析） ──
+    hot_ip_rows = (await db.execute(
+        select(MarketIPSnapshot)
+        .where(MarketIPSnapshot.stat_date == yesterday)
+        .order_by(desc(MarketIPSnapshot.deal_count))
+        .limit(5)
+    )).scalars().all()
+    hot_ips_top5 = [
+        {
+            "rank": i + 1,
+            "ip_name": r.name,
+            "deal_count": r.deal_count or 0,
+            "deal_count_rate": r.deal_count_rate,
+            "market_amount": r.market_amount,
+            "market_amount_rate": r.market_amount_rate,
+            "avg_amount": r.avg_amount,
+            "avg_amount_rate": r.avg_amount_rate,
+        }
+        for i, r in enumerate(hot_ip_rows)
+    ]
+
     return {
         "has_data": yesterday_summary is not None,
         "yesterday": yesterday_summary,
@@ -513,5 +534,6 @@ async def get_market_snapshot_data(db: AsyncSession, target_date: datetime) -> d
         "top_census": top_census,
         "top_archives": top_archives,           # 分类 Top5（用于图表）
         "hot_archives_top10": hot_archives_top10,  # 全局 Top10（用于文章分析）
+        "hot_ips_top5": hot_ips_top5,           # 全局昨日成交量 Top5 IP
     }
 
