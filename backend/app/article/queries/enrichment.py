@@ -82,65 +82,82 @@ async def match_jingtan_archives(db: AsyncSession, archive_names: list[str]) -> 
 async def get_owner_portfolios(
     db: AsyncSession, owners: list[str], limit: int = 6
 ) -> dict[str, list[dict]]:
-    """每个发行主体（owner）的近期鲸探作品。"""
-    portfolios: dict[str, list[dict]] = {}
-    for owner in owners[:6]:
-        r = await db.execute(
-            select(JingtanSkuHomepageDetail)
-            .where(JingtanSkuHomepageDetail.owner == owner)
-            .order_by(JingtanSkuHomepageDetail.sku_issue_time_ms.desc())
-            .limit(limit)
-        )
-        portfolios[owner] = [
-            {
-                "sku_id": s.sku_id,
-                "name": s.sku_name,
-                "author": s.author or "",
-                "mini_file_url": s.mini_file_url or "",
-                "quantity": s.sku_quantity,
-            }
-            for s in r.scalars().all()
-        ]
+    """每个发行主体（owner）的近期鲸探作品。
+
+    一次查询拉回所有 owner 的最新作品（按 sku_issue_time_ms desc），
+    Python 侧分组并截取每个 owner 的前 N 条；避免 N+1 查询。
+    """
+    target_owners = owners[:6]
+    if not target_owners:
+        return {}
+    # 拉取每个 owner 的多条候选；外层多取一些以便分组截取
+    rows = (await db.execute(
+        select(JingtanSkuHomepageDetail)
+        .where(JingtanSkuHomepageDetail.owner.in_(target_owners))
+        .order_by(JingtanSkuHomepageDetail.sku_issue_time_ms.desc())
+        .limit(limit * len(target_owners) * 4)  # 留余量保证每个 owner 都能取到 limit 条
+    )).scalars().all()
+
+    portfolios: dict[str, list[dict]] = {o: [] for o in target_owners}
+    for s in rows:
+        bucket = portfolios.get(s.owner)
+        if bucket is None or len(bucket) >= limit:
+            continue
+        bucket.append({
+            "sku_id": s.sku_id,
+            "name": s.sku_name,
+            "author": s.author or "",
+            "mini_file_url": s.mini_file_url or "",
+            "quantity": s.sku_quantity,
+        })
     return portfolios
 
 
 async def get_author_portfolios(
     db: AsyncSession, authors: list[str], limit: int = 6
 ) -> dict[str, list[dict]]:
-    """每个艺术家/author 的近期鲸探作品。"""
-    portfolios: dict[str, list[dict]] = {}
-    for author in authors[:6]:
-        r = await db.execute(
-            select(JingtanSkuHomepageDetail)
-            .where(JingtanSkuHomepageDetail.author == author)
-            .order_by(JingtanSkuHomepageDetail.sku_issue_time_ms.desc())
-            .limit(limit)
-        )
-        portfolios[author] = [
-            {
-                "sku_id": s.sku_id,
-                "name": s.sku_name,
-                "owner": s.owner or "",
-                "mini_file_url": s.mini_file_url or "",
-                "quantity": s.sku_quantity,
-            }
-            for s in r.scalars().all()
-        ]
+    """每个艺术家/author 的近期鲸探作品（批量查询，Python 侧分组）。"""
+    target_authors = authors[:6]
+    if not target_authors:
+        return {}
+    rows = (await db.execute(
+        select(JingtanSkuHomepageDetail)
+        .where(JingtanSkuHomepageDetail.author.in_(target_authors))
+        .order_by(JingtanSkuHomepageDetail.sku_issue_time_ms.desc())
+        .limit(limit * len(target_authors) * 4)
+    )).scalars().all()
+
+    portfolios: dict[str, list[dict]] = {a: [] for a in target_authors}
+    for s in rows:
+        bucket = portfolios.get(s.author)
+        if bucket is None or len(bucket) >= limit:
+            continue
+        bucket.append({
+            "sku_id": s.sku_id,
+            "name": s.sku_name,
+            "owner": s.owner or "",
+            "mini_file_url": s.mini_file_url or "",
+            "quantity": s.sku_quantity,
+        })
     return portfolios
 
 
 async def get_owner_sku_counts(db: AsyncSession, owners: list[str]) -> dict[str, int]:
-    """每个发行主体在鲸探上的历史藏品总数量。"""
-    counts: dict[str, int] = {}
-    for owner in owners[:10]:
-        cnt = (
-            await db.execute(
-                select(func.count(JingtanSkuHomepageDetail.sku_id)).where(
-                    JingtanSkuHomepageDetail.owner == owner
-                )
-            )
-        ).scalar() or 0
-        counts[owner] = cnt
+    """每个发行主体在鲸探上的历史藏品总数量（一次 GROUP BY 完成）。"""
+    target_owners = owners[:10]
+    if not target_owners:
+        return {}
+    rows = (await db.execute(
+        select(
+            JingtanSkuHomepageDetail.owner,
+            func.count(JingtanSkuHomepageDetail.sku_id),
+        )
+        .where(JingtanSkuHomepageDetail.owner.in_(target_owners))
+        .group_by(JingtanSkuHomepageDetail.owner)
+    )).all()
+    counts = {o: 0 for o in target_owners}
+    for owner, cnt in rows:
+        counts[owner] = cnt or 0
     return counts
 
 
@@ -152,53 +169,61 @@ async def get_ip_deep_analysis(
     """
     对每个 IP 做深度画像：历史/近一年发行次数、粉丝数、简介。
     owners 字段由调用方（analyzer）注入。
+
+    一次 IN 查询 + GROUP BY 获取 total/recent_1y/IP 元信息，避免 N+1。
     """
+    target = ip_names[:8]
+    if not target:
+        return {}
     one_year_ago = date_obj - timedelta(days=365)
+
+    # 历史总发行次数（按 IP 分组聚合）
+    total_rows = (await db.execute(
+        select(IP.ip_name, func.count(LaunchCalendar.id))
+        .join(LaunchCalendar, LaunchCalendar.ip_id == IP.id)
+        .where(
+            and_(
+                IP.ip_name.in_(target),
+                LaunchCalendar.platform_id == 741,
+            )
+        )
+        .group_by(IP.ip_name)
+    )).all()
+    total_map = {name: cnt or 0 for name, cnt in total_rows}
+
+    # 近一年发行次数
+    r1y_rows = (await db.execute(
+        select(IP.ip_name, func.count(LaunchCalendar.id))
+        .join(LaunchCalendar, LaunchCalendar.ip_id == IP.id)
+        .where(
+            and_(
+                IP.ip_name.in_(target),
+                LaunchCalendar.platform_id == 741,
+                LaunchCalendar.sell_time >= one_year_ago,
+                LaunchCalendar.sell_time < date_obj,
+            )
+        )
+        .group_by(IP.ip_name)
+    )).all()
+    r1y_map = {name: cnt or 0 for name, cnt in r1y_rows}
+
+    # IP 元信息（粉丝/简介）
+    ip_rows = (await db.execute(
+        select(IP).where(IP.ip_name.in_(target))
+    )).scalars().all()
+    ip_meta_map = {ip.ip_name: ip for ip in ip_rows}
+
     result: dict[str, dict] = {}
-
-    for ipn in ip_names[:8]:
-        total = (
-            await db.execute(
-                select(func.count(LaunchCalendar.id))
-                .join(IP, LaunchCalendar.ip_id == IP.id)
-                .where(IP.ip_name == ipn)
-                .where(LaunchCalendar.platform_id == 741)
-            )
-        ).scalar() or 0
-
-        r1y = (
-            await db.execute(
-                select(func.count(LaunchCalendar.id))
-                .join(IP, LaunchCalendar.ip_id == IP.id)
-                .where(
-                    and_(
-                        IP.ip_name == ipn,
-                        LaunchCalendar.platform_id == 741,
-                        LaunchCalendar.sell_time >= one_year_ago,
-                        LaunchCalendar.sell_time < date_obj,
-                    )
-                )
-            )
-        ).scalar() or 0
-
-        ip_row = (
-            await db.execute(
-                select(IP)
-                .join(LaunchCalendar, LaunchCalendar.ip_id == IP.id)
-                .where(IP.ip_name == ipn)
-                .limit(1)
-            )
-        ).scalars().first()
-
+    for ipn in target:
+        meta = ip_meta_map.get(ipn)
         result[ipn] = {
-            "total_launches": total,
-            "recent_1y_launches": r1y,
-            "fans_count": (ip_row.fans_count or 0) if ip_row else 0,
-            "description": (ip_row.description or "") if ip_row else "",
+            "total_launches": total_map.get(ipn, 0),
+            "recent_1y_launches": r1y_map.get(ipn, 0),
+            "fans_count": (meta.fans_count or 0) if meta else 0,
+            "description": (meta.description or "") if meta else "",
             "recent_archives": [],
             "owners": [],
         }
-
     return result
 
 
@@ -282,19 +307,23 @@ async def enrich_daily_launches(db: AsyncSession, launches: list[dict]) -> list[
 async def get_owner_other_ips(
     db: AsyncSession, owners: list[str]
 ) -> dict[str, list[str]]:
-    """查询每个发行主体（owner）合作过的所有 author（IP方），用于分析发行商旗下IP矩阵。"""
-    result: dict[str, list[str]] = {}
-    for owner in owners[:8]:
-        rows = (await db.execute(
-            select(JingtanSkuHomepageDetail.author)
-            .where(
-                and_(
-                    JingtanSkuHomepageDetail.owner == owner,
-                    JingtanSkuHomepageDetail.author.isnot(None),
-                    JingtanSkuHomepageDetail.author != "",
-                )
+    """查询每个发行主体（owner）合作过的所有 author（IP方），一次 IN 查询完成。"""
+    target = owners[:8]
+    if not target:
+        return {}
+    rows = (await db.execute(
+        select(JingtanSkuHomepageDetail.owner, JingtanSkuHomepageDetail.author)
+        .where(
+            and_(
+                JingtanSkuHomepageDetail.owner.in_(target),
+                JingtanSkuHomepageDetail.author.isnot(None),
+                JingtanSkuHomepageDetail.author != "",
             )
-            .distinct()
-        )).scalars().all()
-        result[owner] = [r for r in rows if r]
+        )
+        .distinct()
+    )).all()
+    result: dict[str, list[str]] = {o: [] for o in target}
+    for owner, author in rows:
+        if author and author not in result[owner]:
+            result[owner].append(author)
     return result

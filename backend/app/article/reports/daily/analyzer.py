@@ -61,38 +61,44 @@ async def _fetch_archives_live_market(
     from app.crawler.client import crawler_client  # 延迟导入避免循环
 
     result: dict[str, dict] = {}
+    sem = asyncio.Semaphore(5)  # 限制对实时 API 的并发，避免被限流
 
     async def _one(archive_id: str, platform_id: str) -> None:
-        resp = await crawler_client.post_safe(
-            "/h5/goods/archiveGoods",
-            {
-                "archiveId": archive_id,
-                "platformId": platform_id,
-                "active": "0",
-                "page": 1,
-                "pageSize": 1,
-                "sellStatus": 2,
-                "dealType": "",
-                "goodsType": "",
-                "isPayBond": "",
-                "startTime": "",
-                "endTime": "",
-                "fancyNumberType": "",
-                "goodsNo": None,
-                "sortType": None,
-                "maxPrize": None,
-                "minPrize": None,
-                "isDesignatedNumber": None,
-            },
-        )
-        if resp and resp.get("code") == 200:
-            data = resp.get("data") or {}
-            result[archive_id] = {
-                "live_total": data.get("total") or 0,
-                "live_min_price": data.get("goodsMinPrice"),
-            }
-        else:
-            logger.debug(f"archiveGoods 无数据: archiveId={archive_id}")
+        async with sem:
+            try:
+                resp = await crawler_client.post_safe(
+                    "/h5/goods/archiveGoods",
+                    {
+                        "archiveId": archive_id,
+                        "platformId": platform_id,
+                        "active": "0",
+                        "page": 1,
+                        "pageSize": 1,
+                        "sellStatus": 2,
+                        "dealType": "",
+                        "goodsType": "",
+                        "isPayBond": "",
+                        "startTime": "",
+                        "endTime": "",
+                        "fancyNumberType": "",
+                        "goodsNo": None,
+                        "sortType": None,
+                        "maxPrize": None,
+                        "minPrize": None,
+                        "isDesignatedNumber": None,
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"archiveGoods 调用异常 archiveId={archive_id}: {e}")
+                return
+            if resp and resp.get("code") == 200:
+                data = resp.get("data") or {}
+                result[archive_id] = {
+                    "live_total": data.get("total") or 0,
+                    "live_min_price": data.get("goodsMinPrice"),
+                }
+            else:
+                logger.debug(f"archiveGoods 无数据: archiveId={archive_id}")
 
     await asyncio.gather(*[_one(aid, pid) for aid, pid in archive_pairs])
     return result
@@ -156,31 +162,35 @@ async def _fetch_ip_last_launches(
     """
     查询每个 IP 在 before_date 之前最近一次的发行记录。
 
-    用于：文章中描述"该 IP 上次于 XX 年 XX 月 XX 日发行了《XXXX》"
+    一次拉取所有候选行（按 IP+时间倒序），Python 侧首次出现即为各 IP 最新一条，
+    避免对每个 IP 单独查询。
     """
-    result: dict[str, dict] = {}
-    for ipn in ip_names:
-        row = (await db.execute(
-            select(LaunchCalendar, IP.ip_name)
-            .join(IP, LaunchCalendar.ip_id == IP.id)
-            .where(
-                and_(
-                    IP.ip_name == ipn,
-                    LaunchCalendar.platform_id == 741,
-                    LaunchCalendar.sell_time < before_date,
-                )
+    target = ip_names[:8] if ip_names else []
+    if not target:
+        return {}
+    rows = (await db.execute(
+        select(LaunchCalendar, IP.ip_name)
+        .join(IP, LaunchCalendar.ip_id == IP.id)
+        .where(
+            and_(
+                IP.ip_name.in_(target),
+                LaunchCalendar.platform_id == 741,
+                LaunchCalendar.sell_time < before_date,
             )
-            .order_by(desc(LaunchCalendar.sell_time))
-            .limit(1)
-        )).first()
-        if row:
-            lc, _ = row
-            result[ipn] = {
-                "name": lc.name,
-                "sell_time": lc.sell_time.strftime("%Y-%m-%d") if lc.sell_time else "",
-                "price": lc.price or 0,
-                "count": lc.count or 0,
-            }
+        )
+        .order_by(IP.ip_name, desc(LaunchCalendar.sell_time))
+    )).all()
+
+    result: dict[str, dict] = {}
+    for lc, ipn in rows:
+        if ipn in result:
+            continue  # 已取过该 IP 的最新一条
+        result[ipn] = {
+            "name": lc.name,
+            "sell_time": lc.sell_time.strftime("%Y-%m-%d") if lc.sell_time else "",
+            "price": lc.price or 0,
+            "count": lc.count or 0,
+        }
     return result
 
 

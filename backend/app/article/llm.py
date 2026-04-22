@@ -5,10 +5,11 @@
            用极低温度(0.1)让 LLM 从原始数据提取 JSON 事实，预算溢价率/环比等指标。
            目的：消除阶段2写作时自行推算造成的数值幻觉。
   阶段2 — 文章撰写（generate_article_content 主体）
-           将阶段1 JSON 嵌入 prompt，以较低温度(0.3)撰写文章，要求严格引用已核实数字。
+           将阶段1 JSON 嵌入 prompt，以较低温度(0.2)撰写文章，要求严格引用已核实数字。
 
 所有报告类型子包必须在此处导入以触发 @register 装饰器。
 """
+import asyncio
 from typing import Any
 
 from loguru import logger
@@ -25,6 +26,41 @@ from app.article.reports import get_skill
 from app.article.reports.daily.prompt import SYSTEM_PROMPT
 
 settings = get_settings()
+
+
+async def _chat_with_retry(
+    *,
+    messages: list[dict],
+    max_tokens: int,
+    temperature: float,
+    label: str,
+    retries: int = 2,
+) -> str:
+    """LLM chat 调用 + 指数退避重试。最终失败抛出原始异常。"""
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            response = await client.chat.completions.create(
+                model=settings.LLM_MODEL,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception as e:
+            last_exc = e
+            if attempt < retries:
+                wait = 2 ** attempt
+                logger.warning(
+                    f"[{label}] LLM 调用失败（第 {attempt + 1} 次），{wait}s 后重试: {e}"
+                )
+                await asyncio.sleep(wait)
+            else:
+                logger.error(
+                    f"[{label}] LLM 调用最终失败（已重试 {retries} 次）: {e}"
+                )
+    assert last_exc is not None
+    raise last_exc
 
 
 async def _phase1_extract_facts(data: dict[str, Any]) -> str:
@@ -44,16 +80,15 @@ async def _phase1_extract_facts(data: dict[str, Any]) -> str:
     logger.info("第一阶段：开始数据核实与事实提取")
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.LLM_MODEL,
+        result = await _chat_with_retry(
             messages=[
                 {"role": "system", "content": ANALYSIS_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=2000,
-            temperature=0.1,   # 极低温度：确保输出严格忠实于原始数据，不做发挥
+            max_tokens=4000,         # 提高至 4000 防止 IP/Top10 列表 JSON 被截断
+            temperature=0.1,         # 极低温度：严格忠实于原始数据，不做发挥
+            label="phase1",
         )
-        result = (response.choices[0].message.content or "").strip()
         logger.info(f"第一阶段完成，核实事实 JSON 长度: {len(result)} 字符")
         return result
     except Exception as e:
@@ -75,60 +110,70 @@ async def generate_article_content(
     skill = get_skill(article_type)
 
     # ── 阶段1（仅日报）：数据核实 ───────────────────────────────────────────
-    # 将核实结果注入到 data 副本，供 build_daily_prompt 嵌入 prompt 顶部
     enriched_data = dict(data)  # 浅拷贝，不污染原始 data
     if article_type == "daily":
         verified_facts = await _phase1_extract_facts(data)
         if verified_facts:
-            # 注入已核实的 JSON 事实；build_daily_prompt 会读取 _verified_facts 键
             enriched_data["_verified_facts"] = verified_facts
 
     # ── 阶段2：文章撰写 ──────────────────────────────────────────────────────
     user_prompt = skill.build_prompt(enriched_data, available_charts)
-    logger.info(f"第二阶段：开始生成 {article_type} 文章，数据键: {list(enriched_data.keys())}")
+    logger.info(
+        f"第二阶段：开始生成 {article_type} 文章，数据键: {list(enriched_data.keys())}"
+    )
 
-    response = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
+    content = await _chat_with_retry(
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
         max_tokens=settings.LLM_MAX_TOKENS,
-        temperature=0.2,   # 低温度：确保输出克制专业，减少夸张性表达和数值发挥
+        temperature=0.2,
+        label="phase2",
     )
-    content = response.choices[0].message.content or ""
 
-    # 提取文章标题（第一个以 # 开头的行）
+    # 提取文章标题：必须是单一 # 开头（一级标题），跳过 ## / ### 等子标题
     title = ""
     for line in content.split("\n"):
         stripped = line.strip()
-        if stripped.startswith("#"):
+        if stripped.startswith("# ") and not stripped.startswith("## "):
             title = stripped.lstrip("#").strip()
             break
 
     if not title:
         # 兜底标题（LLM 未按格式输出时使用）
         type_names = {"daily": "数藏日报", "weekly": "数藏周报", "monthly": "数藏月报"}
-        date_label = data.get("date") or data.get("start_date") or data.get("month_label", "")
+        date_label = (
+            data.get("date") or data.get("start_date") or data.get("month_label", "")
+        )
         title = f"{type_names.get(article_type, '数藏分析')} · {date_label}"
 
     # 微信公众号标题上限 32 字（官方文档），硬截断保底
     if len(title) > 32:
         title = title[:31] + "…"
 
-    # ── 摘要生成（第三次 LLM 调用，轻量）──────────────────────────────────────
-    summary_resp = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": "请用一句话概括以下文章的核心内容，作为微信公众号文章的摘要。要求：只输出摘要本身，不加任何前缀；字数严格控制在128字以内（含标点）。",
-            },
-            {"role": "user", "content": content[:3000]},
-        ],
-        max_tokens=200,
-        temperature=0.2,
-    )
-    summary = (summary_resp.choices[0].message.content or "").strip()[:128]
+    # ── 摘要生成（轻量调用；失败时降级为兜底文案，不阻断主流程）──────────────
+    summary = ""
+    try:
+        summary = await _chat_with_retry(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "请用一句话概括以下文章的核心内容，作为微信公众号文章的摘要。"
+                        "要求：只输出摘要本身，不加任何前缀；字数严格控制在128字以内（含标点）。"
+                    ),
+                },
+                {"role": "user", "content": content[:3000]},
+            ],
+            max_tokens=200,
+            temperature=0.2,
+            label="summary",
+            retries=1,
+        )
+        summary = summary[:128]
+    except Exception as e:
+        logger.warning(f"摘要生成失败，使用兜底摘要: {e}")
+        summary = (title or "数藏分析报告")[:128]
 
     return {"title": title, "markdown": content, "summary": summary}

@@ -524,9 +524,10 @@ def build_daily_prompt(data: dict, available_charts: list[str]) -> str:
 ![热门藏品Top10](CHART:hot_archives_top10)  ← 若可用
 
 ### 热门IP成交Top5
-  - 取「已核实数据事实」hot_ips_top5（即 ip_deep_analysis 中昨日成交量最高的5个IP）
-  - 逐一陈述：IP名 + 成交笔数 + 环比% + 成交额（¥）
-  - 简评头部 IP 集中度：Top5 合计成交占比，与第6名的差距（若无更多IP则跳过）
+  - 从「已核实数据事实」ip_analysis 中按 yesterday_deal_count 降序取前5个IP
+  - 逐一陈述：IP名 + 成交笔数 + 环比%（yesterday_deal_count_rate） + 市值（yesterday_market_amount）
+  - 简评头部 IP 集中度：Top5 合计成交占比，与第6名的差距（若总数 ≤ 5 则跳过末句）
+  - 若 ip_analysis 中所有 yesterday_deal_count 均为 null，整段「热门IP成交Top5」直接省略
 ![IP成交Top5](CHART:ip_deal_rank)  ← 若可用]
 
 > 数据截止 {data['date']}，市场价格实时变动，内容仅供参考，不构成投资建议。

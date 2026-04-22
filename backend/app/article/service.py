@@ -1,6 +1,8 @@
 """文章生成与发布编排服务"""
 
+import json
 import os
+import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -24,6 +26,15 @@ def _article_dir(article_id: int) -> str:
     return os.path.join(ARTICLES_DIR, str(article_id))
 
 
+def _serialize_data(data: dict) -> str:
+    """将 analyzer data 序列化为 JSON 字符串入库（含 datetime/Decimal 兼容）。"""
+    try:
+        return json.dumps(data, ensure_ascii=False, default=str)
+    except Exception as e:
+        logger.warning(f"analysis_data 序列化失败，退回 repr: {e}")
+        return repr(data)
+
+
 # ---------- 生成文章 ----------
 
 async def generate_article(
@@ -35,6 +46,8 @@ async def generate_article(
     生成文章的完整流程：数据分析 → 图表生成 → AI 写作 → 存库
     article_type: daily / weekly / monthly
     """
+    trace_id = uuid.uuid4().hex[:8]
+    log = logger.bind(trace=trace_id)
     now = datetime.now(_BEIJING)
     skill = get_skill(article_type)
 
@@ -60,7 +73,7 @@ async def generate_article(
         or data.get("month_label", "")
     )
 
-    logger.info(f"文章数据分析完成: type={article_type}, data_date={data_date}")
+    log.info(f"[{trace_id}] 文章数据分析完成: type={article_type}, data_date={data_date}")
 
     # 2) 先创建 article 记录以获取 ID
     article = Article(
@@ -78,7 +91,7 @@ async def generate_article(
         # 3) 生成图表
         charts = skill.generate_charts(data, output_dir)
 
-        logger.info(f"图表生成完成: {list(charts.keys())}")
+        log.info(f"[{trace_id}] 图表生成完成: {list(charts.keys())}")
 
         # 保存图表记录
         for chart_key, chart_path in charts.items():
@@ -111,12 +124,12 @@ async def generate_article(
         article.summary = result["summary"]
         article.cover_image_url = charts.get("cover", "")
         article.status = "draft"
-        article.analysis_data = str(data)  # 保留原始分析数据用于调试
+        article.analysis_data = _serialize_data(data)  # JSON 序列化，便于后续解析复盘
         db.add(article)
         await db.commit()
         await db.refresh(article)
 
-        logger.info(f"文章生成完成: id={article.id}, title={article.title}")
+        log.info(f"[{trace_id}] 文章生成完成: id={article.id}, title={article.title}")
         return article
 
     except Exception as e:
@@ -125,17 +138,26 @@ async def generate_article(
         db.add(article)
         await db.commit()
         await db.refresh(article)
-        logger.error(f"文章生成失败: id={article.id}, error={e}")
+        log.error(f"[{trace_id}] 文章生成失败: id={article.id}, error={e}")
         raise
 
 
 # ---------- 发布到微信 ----------
 
 async def publish_article(db: AsyncSession, article_id: int) -> Article:
+    """发布文章到微信草稿。
+
+    幂等性保证：
+      - 已上传过的图片（wechat_media_url 非空）不会重复上传，直接复用 URL
+      - 状态 publishing 也允许重试（用于断网/超时后从中间态恢复）
+    """
+    trace_id = uuid.uuid4().hex[:8]
+    log = logger.bind(trace=trace_id)
     article = await db.get(Article, article_id)
     if not article:
         raise ValueError("文章不存在")
-    if article.status not in ("draft", "failed"):
+    # 允许从 draft / failed / publishing（中断恢复）三种状态发起发布
+    if article.status not in ("draft", "failed", "publishing"):
         raise ValueError(f"文章状态 {article.status} 不允许发布")
 
     if not wechat_client.is_configured:
@@ -146,7 +168,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         db.add(article)
         await db.commit()
 
-        # 1) 上传文章内图片到微信
+        # 1) 上传文章内图片到微信（已上传的复用，避免重复消耗素材库配额）
         images = (await db.execute(
             select(ArticleImage).where(ArticleImage.article_id == article_id)
         )).scalars().all()
@@ -157,6 +179,15 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         for img in images:
             if not img.file_path or not os.path.exists(img.file_path):
                 continue
+            # 幂等：已经上传过的直接复用
+            if img.wechat_media_url:
+                if img.image_type == "cover":
+                    cover_media_id = img.wechat_media_url
+                else:
+                    wechat_chart_urls[img.image_type] = img.wechat_media_url
+                log.info(f"[{trace_id}] 复用已上传图片: type={img.image_type}")
+                continue
+
             if img.image_type == "cover":
                 cover_media_id = await wechat_client.upload_material(img.file_path)
                 img.wechat_media_url = cover_media_id
@@ -165,6 +196,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
                 wechat_chart_urls[img.image_type] = url
                 img.wechat_media_url = url
             db.add(img)
+            await db.commit()  # 每张图片上传后立即提交，确保中断可恢复
 
         if not cover_media_id:
             raise RuntimeError("封面图上传失败")
@@ -174,14 +206,20 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
             article.content_markdown or "", wechat_chart_urls
         )
 
-        # 3) 创建草稿
-        media_id = await wechat_client.create_draft(
-            title=article.title,
-            content_html=wechat_html,
-            cover_media_id=cover_media_id,
-            digest=article.summary or "",
-        )
-        article.wechat_media_id = media_id
+        # 3) 创建草稿（若已有 wechat_media_id 则跳过创建直接发布）
+        if not article.wechat_media_id:
+            media_id = await wechat_client.create_draft(
+                title=article.title,
+                content_html=wechat_html,
+                cover_media_id=cover_media_id,
+                digest=article.summary or "",
+            )
+            article.wechat_media_id = media_id
+            db.add(article)
+            await db.commit()
+        else:
+            media_id = article.wechat_media_id
+            log.info(f"[{trace_id}] 复用已创建草稿 media_id={media_id}")
 
         # 4) 发布
         publish_id = await wechat_client.publish(media_id)
@@ -192,7 +230,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         await db.commit()
         await db.refresh(article)
 
-        logger.info(f"文章发布成功: id={article.id}, publish_id={publish_id}")
+        log.info(f"[{trace_id}] 文章发布成功: id={article.id}, publish_id={publish_id}")
         return article
 
     except Exception as e:
@@ -201,7 +239,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         db.add(article)
         await db.commit()
         await db.refresh(article)
-        logger.error(f"文章发布失败: id={article.id}, error={e}")
+        log.error(f"[{trace_id}] 文章发布失败: id={article.id}, error={e}")
         raise
 
 
