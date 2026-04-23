@@ -9,7 +9,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import {
-  getArticles, generateArticle, publishArticle, deleteArticle,
+  getArticles, generateArticle, sendToWechat, deleteArticle,
   type ArticleItem,
 } from '../../api/articles'
 
@@ -24,8 +24,7 @@ const TYPE_MAP: Record<string, { label: string; color: string }> = {
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   generating: { label: '生成中', color: 'processing' },
   draft: { label: '草稿', color: 'default' },
-  publishing: { label: '发布中', color: 'processing' },
-  published: { label: '已发布', color: 'success' },
+  drafted: { label: '已推送草稿箱', color: 'success' },
   failed: { label: '失败', color: 'error' },
 }
 
@@ -63,13 +62,13 @@ export default function ArticlesPage() {
   })
 
   const pubMutation = useMutation({
-    mutationFn: publishArticle,
+    mutationFn: sendToWechat,
     onSuccess: (res) => {
-      message.success(res.message || '发布成功')
+      message.success(res.message || '草稿已推送到微信草稿箱')
       queryClient.invalidateQueries({ queryKey: ['articles'] })
     },
     onError: (e: any) => {
-      message.error(e?.response?.data?.detail || '发布失败')
+      message.error(e?.response?.data?.detail || '推送失败')
     },
   })
 
@@ -156,7 +155,7 @@ export default function ArticlesPage() {
               onClick={() => pubMutation.mutate(record.id)}
               loading={pubMutation.isPending}
             >
-              发布
+              推送草稿
             </Button>
           )}
           <Popconfirm title="确定删除？" onConfirm={() => delMutation.mutate(record.id)}>

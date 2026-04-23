@@ -7,7 +7,7 @@ import {
   ArrowLeftOutlined, SendOutlined, EditOutlined, ReloadOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getArticle, publishArticle, updateArticle, generateArticle } from '../../api/articles'
+import { getArticle, sendToWechat, updateArticle, generateArticle } from '../../api/articles'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -21,8 +21,7 @@ const TYPE_MAP: Record<string, { label: string; color: string }> = {
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   generating: { label: '生成中', color: 'processing' },
   draft: { label: '草稿', color: 'default' },
-  publishing: { label: '发布中', color: 'processing' },
-  published: { label: '已发布', color: 'success' },
+  drafted: { label: '已推送草稿箱', color: 'success' },
   failed: { label: '失败', color: 'error' },
 }
 
@@ -43,13 +42,13 @@ export default function ArticlePreviewPage() {
   })
 
   const pubMutation = useMutation({
-    mutationFn: () => publishArticle(Number(id)),
+    mutationFn: () => sendToWechat(Number(id)),
     onSuccess: (res) => {
-      message.success(res.message || '发布成功')
+      message.success(res.message || '草稿已推送到微信草稿箱')
       queryClient.invalidateQueries({ queryKey: ['article', id] })
     },
     onError: (e: any) => {
-      message.error(e?.response?.data?.detail || '发布失败')
+      message.error(e?.response?.data?.detail || '推送失败')
     },
   })
 
@@ -123,7 +122,7 @@ export default function ArticlePreviewPage() {
                 onClick={() => pubMutation.mutate()}
                 loading={pubMutation.isPending}
               >
-                发布到微信
+                推送到微信草稿箱
               </Button>
             </>
           )}
@@ -151,7 +150,6 @@ export default function ArticlePreviewPage() {
           </Descriptions.Item>
           <Descriptions.Item label="数据日期">{article.data_date || '-'}</Descriptions.Item>
           <Descriptions.Item label="创建时间">{article.created_at || '-'}</Descriptions.Item>
-          <Descriptions.Item label="发布时间">{article.published_at || '-'}</Descriptions.Item>
         </Descriptions>
         {article.summary && (
           <div style={{ marginTop: 12, padding: '8px 12px', background: '#f6f8fa', borderRadius: 6 }}>

@@ -1,5 +1,6 @@
 """微信公众号 API 客户端"""
 
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -124,10 +125,12 @@ class WeChatMPClient:
             "need_open_comment": 1,
             "only_fans_can_comment": 0,
         }
+        body = json.dumps({"articles": [article]}, ensure_ascii=False).encode("utf-8")
         resp = await self._client.post(
             f"{_BASE}/cgi-bin/draft/add",
             params={"access_token": token},
-            json={"articles": [article]},
+            content=body,
+            headers={"Content-Type": "application/json; charset=utf-8"},
         )
         data = resp.json()
         if "media_id" not in data:
@@ -138,33 +141,6 @@ class WeChatMPClient:
             )
         logger.info(f"草稿已创建: media_id={data['media_id']}")
         return data["media_id"]
-
-    # ---------- 发布 ----------
-
-    async def publish(self, media_id: str) -> str:
-        token = await self.get_access_token()
-        resp = await self._client.post(
-            f"{_BASE}/cgi-bin/freepublish/submit",
-            params={"access_token": token},
-            json={"media_id": media_id},
-        )
-        data = resp.json()
-        if data.get("errcode", 0) != 0:
-            raise RuntimeError(f"发布失败: {data}")
-        publish_id = data.get("publish_id", "")
-        logger.info(f"文章已提交发布: publish_id={publish_id}")
-        return str(publish_id)
-
-    # ---------- 查询发布状态 ----------
-
-    async def get_publish_status(self, publish_id: str) -> dict:
-        token = await self.get_access_token()
-        resp = await self._client.post(
-            f"{_BASE}/cgi-bin/freepublish/get",
-            params={"access_token": token},
-            json={"publish_id": publish_id},
-        )
-        return resp.json()
 
     @property
     def is_configured(self) -> bool:

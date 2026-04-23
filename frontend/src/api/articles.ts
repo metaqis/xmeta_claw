@@ -8,7 +8,6 @@ export interface ArticleItem {
   summary: string | null
   status: string
   cover_image_url: string | null
-  published_at: string | null
   created_at: string | null
 }
 
@@ -30,8 +29,6 @@ export interface ArticleDetail {
   cover_image_url: string | null
   status: string
   wechat_media_id: string | null
-  wechat_publish_id: string | null
-  published_at: string | null
   error_message: string | null
   created_at: string | null
   updated_at: string | null
@@ -58,9 +55,9 @@ export function generateArticle(data: { article_type: string; target_date?: stri
   )
 }
 
-export function publishArticle(id: number) {
-  return request.post<any, { id: number; status: string; message: string }>(
-    `/articles/${id}/publish`,
+export function sendToWechat(id: number) {
+  return request.post<any, { id: number; status: string; wechat_media_id: string; message: string }>(
+    `/articles/${id}/send_to_wechat`,
   )
 }
 

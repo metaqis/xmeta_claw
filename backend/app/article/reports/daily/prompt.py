@@ -476,12 +476,12 @@ def build_daily_prompt(data: dict, available_charts: list[str]) -> str:
 ---
 ## 基础数据
 - 日期：{data['date']}
-- 今日发行：**{data['total_launches']} 项**，总量 **{data['total_supply']:,} 份**，总价值 **¥{data['total_value']:,.0f}**
+- 今日发行：**{data['total_launches']} 项**，总量 **{_fmt_wan(data['total_supply'], '份')}**，总价值 **{_fmt_wan(data['total_value'])}**
 - 均价 ¥{data['avg_price']:.2f}（最高 ¥{data['max_price']:.2f} / 最低 ¥{data['min_price']:.2f}）
 - **预计算市场成交量日环比：{market_change_disp}**（Python 预计算）
 
 ## 近7天每日发行量（用于横向对比，禁止在无此基准时对发行规模作定性）
-{_build_recent_launches_block(data.get('recent_launch_counts') or [])}
+{_build_recent_launches_block(data.get('recent_launch_counts') or [], data['total_launches'])}
 
 ## 发行清单
 | # | 名称 | IP | 单价 | 数量 | 总价值 | 优先购 |
@@ -506,7 +506,7 @@ def build_daily_prompt(data: dict, available_charts: list[str]) -> str:
 ```
 # 数藏日报·{data['date']}｜[1句话概括今日核心数据，纯陈述句，无感叹号/问号]
 
-今日共有 X 项数字藏品发行，总供应量 X 份，总价值 ¥X。[直接点明核心数据，无需铺垫]
+今日共有 X 项数字藏品发行，总供应量 X.XX万份，总价值 ¥X.X万。[直接点明核心数据，无需铺垫；数量≥1万时用万为单位]
 
 ## 今日发售日历
 [先用 1-2 句概述今日整体发行规模：发行项数、总量、总价值；
@@ -572,25 +572,46 @@ def build_daily_prompt(data: dict, available_charts: list[str]) -> str:
 - **涨跌幅描述必须与数据幅度匹配**（参见System中的涨跌描述规则第6条）
 - 文物/字画类藏品须结合历史文化背景客观介绍
 - 无行情数据时注明「暂无行情数据」，不得编造
-- **禁止对发行规模作主观定性（如"规模较小/较大/清淡/活跃"），必须引用「近7天每日发行量」数据做客观对比（如"今日发行2项，低于近7日均值X项"），若近7日数据全为0或缺失则只陈述绝对数字，不作大小判断**"""
+- **禁止对发行规模作主观定性（如"规模较小/较大/清淡/活跃"），必须使用「近7天每日发行量」末尾的「预计算」结论（如"高于均值X项"），该结论已由Python计算，直接引用，不得自行重新比较；若预计算结论缺失则只陈述绝对数字**"""
 
 
-def _build_recent_launches_block(recent: list[dict]) -> str:
-    """格式化近7天每日发行量，供 LLM 做横向对比判断。"""
+def _fmt_wan(n: float | int | None, unit: str = "") -> str:
+    """将 ≥10000 的数字格式化为 X.XXW（万），小于10000直接返回原数字字符串。"""
+    if n is None:
+        return "—"
+    n = float(n)
+    if abs(n) >= 10000:
+        val = n / 10000
+        # 去掉尾零：3.00万→3万，3.10万→3.1万，3.68万→3.68万
+        s = f"{val:.2f}".rstrip("0").rstrip(".")
+        return f"{s}万{unit}"
+    return f"{n:,.0f}{unit}"
+
+
+def _build_recent_launches_block(recent: list[dict], today_count: int = 0) -> str:
+    """格式化近7天每日发行量，并预计算今日与均值的对比结论（避免LLM自行比较出错）。"""
     if not recent:
         return "（暂无近期发行历史）"
-    lines = ["| 日期 | 发行项数 | 总量（份）| 总价值 |",
-             "|------|---------|---------|--------|"]
+    lines = ["| 日期 | 发行项数 | 总量 | 总价值 |",
+             "|------|---------|------|--------|"]
     for r in recent:
         lines.append(
             f"| {r['date']} | {r['total_launches']} "
-            f"| {r['total_supply']:,} "
-            f"| ¥{r['total_value']:,.0f} |"
+            f"| {_fmt_wan(r['total_supply'], '份')} "
+            f"| {_fmt_wan(r['total_value'])} |"
         )
     non_zero = [r["total_launches"] for r in recent if r["total_launches"] > 0]
     if non_zero:
         avg = round(sum(non_zero) / len(non_zero), 1)
         lines.append(f"\n近7日有效日（发行量>0）均值：**{avg} 项/日**")
+        if today_count > 0:
+            if today_count > avg:
+                cmp = f"高于均值 {round(today_count - avg, 1)} 项"
+            elif today_count < avg:
+                cmp = f"低于均值 {round(avg - today_count, 1)} 项"
+            else:
+                cmp = "与均值持平"
+            lines.append(f"**预计算：今日 {today_count} 项，{cmp}（请直接使用此结论，禁止自行重新比较）**")
     return "\n".join(lines)
 
 

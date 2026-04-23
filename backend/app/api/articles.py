@@ -9,7 +9,7 @@ from app.database.db import get_db
 from app.api.auth import get_current_user
 from app.article.service import (
     generate_article,
-    publish_article,
+    send_to_wechat,
     list_articles,
     get_article_detail,
     delete_article,
@@ -40,7 +40,6 @@ class ArticleItem(BaseModel):
     summary: str | None = None
     status: str
     cover_image_url: str | None = None
-    published_at: str | None = None
     created_at: str | None = None
 
 
@@ -73,7 +72,6 @@ async def api_list_articles(
                 summary=a.summary,
                 status=a.status,
                 cover_image_url=a.cover_image_url,
-                published_at=str(a.published_at) if a.published_at else None,
                 created_at=str(a.created_at) if a.created_at else None,
             )
             for a in articles
@@ -116,19 +114,19 @@ async def api_generate_article(
         raise HTTPException(500, f"文章生成失败: {e}")
 
 
-@router.post("/{article_id}/publish")
-async def api_publish_article(
+@router.post("/{article_id}/send_to_wechat")
+async def api_send_to_wechat(
     article_id: int,
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
     try:
-        article = await publish_article(db, article_id)
+        article = await send_to_wechat(db, article_id)
         return {
             "id": article.id,
             "status": article.status,
-            "wechat_publish_id": article.wechat_publish_id,
-            "message": "文章发布成功",
+            "wechat_media_id": article.wechat_media_id,
+            "message": "草稿已创建，请在微信公众平台发布",
         }
     except ValueError as e:
         raise HTTPException(400, str(e))

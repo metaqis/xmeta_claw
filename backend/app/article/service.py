@@ -142,32 +142,28 @@ async def generate_article(
         raise
 
 
-# ---------- 发布到微信 ----------
+# ---------- 发送到微信草稿箱 ----------
 
-async def publish_article(db: AsyncSession, article_id: int) -> Article:
-    """发布文章到微信草稿。
+async def send_to_wechat(db: AsyncSession, article_id: int) -> Article:
+    """上传图片并在微信草稿箱创建草稿。
 
     幂等性保证：
       - 已上传过的图片（wechat_media_url 非空）不会重复上传，直接复用 URL
-      - 状态 publishing 也允许重试（用于断网/超时后从中间态恢复）
+      - 已创建过草稿（wechat_media_id 非空）直接复用，不重复创建
+      - 状态 failed 也允许重试（用于中断恢复）
     """
     trace_id = uuid.uuid4().hex[:8]
     log = logger.bind(trace=trace_id)
     article = await db.get(Article, article_id)
     if not article:
         raise ValueError("文章不存在")
-    # 允许从 draft / failed / publishing（中断恢复）三种状态发起发布
-    if article.status not in ("draft", "failed", "publishing"):
-        raise ValueError(f"文章状态 {article.status} 不允许发布")
+    if article.status not in ("draft", "failed"):
+        raise ValueError(f"文章状态 {article.status} 不允许发送到微信")
 
     if not wechat_client.is_configured:
         raise RuntimeError("微信公众号未配置 (WECHAT_APP_ID / WECHAT_APP_SECRET)")
 
     try:
-        article.status = "publishing"
-        db.add(article)
-        await db.commit()
-
         # 1) 上传文章内图片到微信（已上传的复用，避免重复消耗素材库配额）
         images = (await db.execute(
             select(ArticleImage).where(ArticleImage.article_id == article_id)
@@ -179,7 +175,6 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         for img in images:
             if not img.file_path or not os.path.exists(img.file_path):
                 continue
-            # 幂等：已经上传过的直接复用
             if img.wechat_media_url:
                 if img.image_type == "cover":
                     cover_media_id = img.wechat_media_url
@@ -196,7 +191,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
                 wechat_chart_urls[img.image_type] = url
                 img.wechat_media_url = url
             db.add(img)
-            await db.commit()  # 每张图片上传后立即提交，确保中断可恢复
+            await db.commit()
 
         if not cover_media_id:
             raise RuntimeError("封面图上传失败")
@@ -206,7 +201,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
             article.content_markdown or "", wechat_chart_urls
         )
 
-        # 3) 创建草稿（若已有 wechat_media_id 则跳过创建直接发布）
+        # 3) 创建草稿（已有 wechat_media_id 则直接复用）
         if not article.wechat_media_id:
             media_id = await wechat_client.create_draft(
                 title=article.title,
@@ -215,22 +210,16 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
                 digest=article.summary or "",
             )
             article.wechat_media_id = media_id
-            db.add(article)
-            await db.commit()
         else:
             media_id = article.wechat_media_id
             log.info(f"[{trace_id}] 复用已创建草稿 media_id={media_id}")
 
-        # 4) 发布
-        publish_id = await wechat_client.publish(media_id)
-        article.wechat_publish_id = publish_id
-        article.status = "published"
-        article.published_at = datetime.now(timezone.utc)
+        article.status = "drafted"
         db.add(article)
         await db.commit()
         await db.refresh(article)
 
-        log.info(f"[{trace_id}] 文章发布成功: id={article.id}, publish_id={publish_id}")
+        log.info(f"[{trace_id}] 草稿已创建: id={article.id}, media_id={media_id}")
         return article
 
     except Exception as e:
@@ -239,7 +228,7 @@ async def publish_article(db: AsyncSession, article_id: int) -> Article:
         db.add(article)
         await db.commit()
         await db.refresh(article)
-        log.error(f"[{trace_id}] 文章发布失败: id={article.id}, error={e}")
+        log.error(f"[{trace_id}] 发送微信草稿失败: id={article.id}, error={e}")
         raise
 
 
