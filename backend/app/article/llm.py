@@ -161,19 +161,23 @@ async def generate_article_content(
                     "role": "system",
                     "content": (
                         "请用一句话概括以下文章的核心内容，作为微信公众号文章的摘要。"
-                        "要求：只输出摘要本身，不加任何前缀；字数严格控制在128字以内（含标点）。"
+                        "要求：只输出摘要本身，不加任何前缀；"
+                        "字数严格控制在20字以内（含标点），超出则截断。"
                     ),
                 },
                 {"role": "user", "content": content[:3000]},
             ],
-            max_tokens=200,
+            max_tokens=60,
             temperature=0.2,
             label="summary",
             retries=1,
         )
-        summary = summary[:128]
+        # 64字节上限（微信digest字段实际限制），中文3字节/字≈20字
+        enc = summary.encode("utf-8")
+        if len(enc) > 60:
+            summary = enc[:60].decode("utf-8", errors="ignore")
     except Exception as e:
         logger.warning(f"摘要生成失败，使用兜底摘要: {e}")
-        summary = (title or "数藏分析报告")[:128]
+        summary = (title or "数藏分析报告")[:20]
 
     return {"title": title, "markdown": content, "summary": summary}

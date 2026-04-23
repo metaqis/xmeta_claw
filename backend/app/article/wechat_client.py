@@ -94,9 +94,16 @@ class WeChatMPClient:
     ) -> str:
         token = await self.get_access_token()
         # 微信公众号字段限制（官方文档）:
-        # title ≤ 32字, author ≤ 16字, digest ≤ 128字, content < 2万字符 & < 1MB
+        # title ≤ 32字, author ≤ 16字, digest ≤ 64字节, content < 2万字符 & < 1MB
+        # digest 按字节截断（中文3字节/字，64字节≈21个中文字）
+        def _truncate_bytes(s: str, max_bytes: int) -> str:
+            enc = s.encode("utf-8")
+            if len(enc) <= max_bytes:
+                return s
+            return enc[:max_bytes].decode("utf-8", errors="ignore")
+
         safe_title = title[:32]
-        safe_digest = digest[:128] if digest else ""
+        safe_digest = _truncate_bytes(digest, 64) if digest else ""
         safe_author = author[:16]
         content_bytes = len(content_html.encode("utf-8")) if content_html else 0
         if content_bytes > 1_000_000:

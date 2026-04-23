@@ -219,6 +219,20 @@ async def get_daily_data(db: AsyncSession, target_date: str) -> dict[str, Any]:
 
     yesterday = date_obj - timedelta(days=1)
 
+    # ── 阶段2b：近7天每日发行量（用于发行规模横向对比，避免LLM主观臆断）──────
+    recent_launch_counts: list[dict] = []
+    for i in range(1, 8):
+        d = date_obj - timedelta(days=i)
+        d_rows = await get_launch_rows(db, d, d + timedelta(days=1))
+        d_sum = summarize_launches(d_rows)
+        recent_launch_counts.append({
+            "date": d.strftime("%Y-%m-%d"),
+            "total_launches": d_sum["total_launches"],
+            "total_supply": d_sum["total_supply"],
+            "total_value": round(d_sum["total_value"], 0),
+        })
+    recent_launch_counts.reverse()  # 按日期升序
+
     ip_names = list({l["ip_name"] for l in summary["launches"] if l["ip_name"] != "未知"})
 
     # ── 阶段3：发行数据增强 ──────────────────────────────────────────────────
@@ -320,6 +334,7 @@ async def get_daily_data(db: AsyncSession, target_date: str) -> dict[str, Any]:
     return {
         "date": target_date,
         **summary,
+        "recent_launch_counts": recent_launch_counts,
         "enriched_launches": enriched_launches,
         "ip_deep_analysis": ip_deep,
         "market_analysis": market_data,
