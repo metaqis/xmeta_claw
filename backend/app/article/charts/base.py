@@ -64,7 +64,7 @@ def setup_ax(ax, title: str = "") -> None:
 
 
 def save_fig(fig, path: str) -> None:
-    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor=BG_COLOR)
+    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor=BG_COLOR)
     plt.close(fig)
 
 

@@ -509,10 +509,10 @@ def build_daily_prompt(data: dict, available_charts: list[str]) -> str:
 今日共有 X 项数字藏品发行，总供应量 X.XX万份，总价值 ¥X.X万。[直接点明核心数据，无需铺垫；数量≥1万时用万为单位]
 
 ## 今日发售日历
+![今日发行总览](CHART:launch_grid)  ← 若可用
 [先用 1-2 句概述今日整体发行规模：发行项数、总量、总价值；
  逐项列出所有发行品：名称、IP、价格、数量、是否含优先购；
  含品单独标注在售总量（live_total）和地板价（live_min_price）实时数据]
-![今日发行总览](CHART:launch_grid)  ← 若可用
 
 ## 重点藏品解读
 [对每件含品逐一分析（无含品时分析发行主力IP整体特征）：

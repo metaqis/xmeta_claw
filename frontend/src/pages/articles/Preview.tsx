@@ -190,12 +190,12 @@ export default function ArticlePreviewPage() {
           margin: '0 auto',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}
+        styles={{ body: { padding: 0 } }}
       >
         {previewMode === 'html' ? (
           <div
-            dangerouslySetInnerHTML={{ __html: article.content_html || '<p>暂无内容</p>' }}
-            style={{ lineHeight: 1.8, overflowX: 'auto', wordBreak: 'break-word' }}
-            className="article-html-preview"
+            dangerouslySetInnerHTML={{ __html: article.content_html || '<p style="padding:20px">暂无内容</p>' }}
+            style={{ overflowX: 'auto', wordBreak: 'break-word' }}
           />
         ) : (
           <pre
