@@ -9,6 +9,7 @@ from app.article.charts import (
     chart_hot_archives_top10,
     chart_plane_deal_rank,
     chart_market_trend_line,
+    chart_core_plane_market_line,
     chart_ip_deal_rank,
 )
 
@@ -46,6 +47,11 @@ def generate_daily_charts(data: dict, output_dir: str) -> dict[str, str]:
         p = chart_market_trend_line(market.get("summaries_7d", []), output_dir)
         if p:
             charts["market_trend_line"] = p
+
+        # 近7天核心藏品板块市值折线图（鲸探50 vs 禁出文物）
+        p = chart_core_plane_market_line(market.get("core_plane_market_values_7d", []), output_dir)
+        if p:
+            charts["core_plane_market_line"] = p
 
         # 昨日 vs 前日概览柱状图
         p = chart_market_overview(

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, date as date_type
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
@@ -386,6 +386,49 @@ async def get_market_snapshot_data(db: AsyncSession, target_date: datetime) -> d
         for r in summary_rows
     ]
 
+    # ── 近7天核心板块总市值（鲸探50 / 禁出文物）──────────────────────────────
+    core_dates: list[date_type] = [
+        (seven_days_ago + timedelta(days=i)) for i in range(0, 7)
+    ]
+    core_plane_rows = (await db.execute(
+        select(MarketPlaneSnapshot)
+        .where(
+            and_(
+                MarketPlaneSnapshot.stat_date >= seven_days_ago,
+                MarketPlaneSnapshot.stat_date <= yesterday,
+                or_(
+                    MarketPlaneSnapshot.plane_name.in_(["鲸探50", "鲸探 50", "禁出文物", "禁出195", "禁出 195"]),
+                    MarketPlaneSnapshot.plane_name.like("%鲸探50%"),
+                    MarketPlaneSnapshot.plane_name.like("%禁出%"),
+                ),
+            )
+        )
+        .order_by(MarketPlaneSnapshot.stat_date, MarketPlaneSnapshot.plane_name)
+    )).scalars().all()
+
+    core_value_map: dict[date_type, dict[str, float | None]] = {
+        d: {"jingtan50": None, "restricted_relics": None} for d in core_dates
+    }
+    for r in core_plane_rows:
+        name = (r.plane_name or "").replace(" ", "")
+        if "鲸探50" in name:
+            old = core_value_map[r.stat_date]["jingtan50"]
+            cur = float(r.total_market_value or 0)
+            core_value_map[r.stat_date]["jingtan50"] = cur if old is None else max(old, cur)
+        elif ("禁出文物" in name) or ("禁出195" in name) or ("禁出" in name):
+            old = core_value_map[r.stat_date]["restricted_relics"]
+            cur = float(r.total_market_value or 0)
+            core_value_map[r.stat_date]["restricted_relics"] = cur if old is None else max(old, cur)
+
+    core_plane_market_values_7d: list[dict] = [
+        {
+            "stat_date": str(d),
+            "jingtan50_market_value": core_value_map[d]["jingtan50"],
+            "restricted_relics_market_value": core_value_map[d]["restricted_relics"],
+        }
+        for d in core_dates
+    ]
+
     def _row_to_summary(r) -> dict:
         return {
             "stat_date": str(r.stat_date),
@@ -544,6 +587,7 @@ async def get_market_snapshot_data(db: AsyncSession, target_date: datetime) -> d
         "yesterday": yesterday_summary,
         "day_before": day_before_summary,
         "summaries_7d": summaries_7d,           # 近7天全市场汇总（用于折线图）
+        "core_plane_market_values_7d": core_plane_market_values_7d,  # 核心板块近7天总市值
         "top_planes": top_planes,
         "plane_census": plane_census,
         "top_census": top_census,

@@ -537,6 +537,69 @@ def chart_market_trend_line(
     return path
 
 
+def chart_core_plane_market_line(
+    core_values_7d: list[dict],
+    output_dir: str,
+    filename: str = "core_plane_market_line.png",
+) -> str:
+    """近7天核心板块总市值折线图（鲸探50 vs 禁出文物）。"""
+    ensure_dir(output_dir)
+    path = os.path.join(output_dir, filename)
+    if not core_values_7d:
+        return ""
+
+    dates = [d.get("stat_date", "")[-5:] for d in core_values_7d]
+    jingtan50 = [
+        (d.get("jingtan50_market_value") or 0) / 1e8 for d in core_values_7d
+    ]
+    relics = [
+        (d.get("restricted_relics_market_value") or 0) / 1e8 for d in core_values_7d
+    ]
+
+    if not any(jingtan50) and not any(relics):
+        return ""
+
+    c1 = "#1677ff"
+    c2 = "#13c2c2"
+
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    fig.patch.set_facecolor(BG_COLOR)
+    ax.set_facecolor(BG_COLOR)
+    ax.set_title("核心藏品总市值走势（近7天）", fontsize=13, fontweight="bold",
+                 color=TEXT_COLOR, pad=10)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color(GRID_COLOR)
+    ax.spines["bottom"].set_color(GRID_COLOR)
+    ax.tick_params(colors=TEXT_COLOR, labelsize=9)
+    ax.grid(axis="y", color=GRID_COLOR, linewidth=0.5, linestyle="--")
+
+    line1, = ax.plot(dates, jingtan50, marker="o", linewidth=2.2, markersize=5.5,
+                     color=c1, label="鲸探50总市值（亿）", zorder=4)
+    line2, = ax.plot(dates, relics, marker="s", linewidth=2.2, markersize=5.5,
+                     color=c2, label="禁出文物总市值（亿）", zorder=4)
+
+    ymax = max(max(jingtan50, default=0), max(relics, default=0), 1)
+    ax.set_ylim(0, ymax * 1.22)
+    ax.set_ylabel("总市值（亿元）", fontsize=10, color=TEXT_COLOR)
+
+    for x, v in zip(dates, jingtan50):
+        if v:
+            ax.annotate(f"{v:.2f}", (x, v), textcoords="offset points",
+                        xytext=(0, 8), ha="center", fontsize=8.5, color=c1)
+    for x, v in zip(dates, relics):
+        if v:
+            ax.annotate(f"{v:.2f}", (x, v), textcoords="offset points",
+                        xytext=(0, -14), ha="center", fontsize=8.5, color=c2)
+
+    ax.legend(handles=[line1, line2], loc="upper left", fontsize=9,
+              facecolor=BG_COLOR, labelcolor=TEXT_COLOR, frameon=False)
+
+    fig.tight_layout()
+    save_fig(fig, path)
+    return path
+
+
 def chart_ip_deal_rank(
     ip_snapshots: list[dict],
     output_dir: str,

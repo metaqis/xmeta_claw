@@ -16,6 +16,7 @@ from .market import (
     chart_hot_archives_top10,
     chart_plane_deal_rank,
     chart_market_trend_line,
+    chart_core_plane_market_line,
     chart_ip_deal_rank,
 )
 
@@ -35,5 +36,6 @@ __all__ = [
     "chart_hot_archives_top10",
     "chart_plane_deal_rank",
     "chart_market_trend_line",
+    "chart_core_plane_market_line",
     "chart_ip_deal_rank",
 ]

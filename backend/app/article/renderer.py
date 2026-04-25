@@ -80,8 +80,7 @@ def markdown_to_wechat_html(markdown_text: str, chart_urls: dict[str, str]) -> s
         "<h3>": (
             f'<h3 style="'
             f'font-size:15px;font-weight:600;color:{_TEXT};'
-            f'border-left:3px solid {_CYAN};'
-            f'padding-left:10px;margin:22px 0 10px;">'
+            f'margin:22px 0 10px;">'
         ),
 
         # 正文段落
@@ -152,6 +151,9 @@ def markdown_to_wechat_html(markdown_text: str, chart_urls: dict[str, str]) -> s
     for tag, styled in style_map.items():
         html = html.replace(tag, styled)
 
+    # 清理空列表项，避免微信中出现带圆点的空行
+    html = _remove_empty_list_items(html)
+
     # ── 4. 表格行间色交替 ────────────────────────────────────────────────────
     html = _alternate_rows(html)
 
@@ -179,7 +181,7 @@ def markdown_to_wechat_html(markdown_text: str, chart_urls: dict[str, str]) -> s
         f'border-radius:10px;text-align:center;'
         f'box-shadow:0 4px 16px rgba(12,26,46,0.25);">'
         f'<p style="color:#7db8ff;font-size:12px;margin:0 0 4px;letter-spacing:0.5px;">'
-        f'XMETA · 数字资产情报</p>'
+        f'数字资产情报</p>'
         f'<p style="color:#475569;font-size:11px;margin:0;line-height:1.6;">'
         f'数据来源：xmeta与鲸探平台 &nbsp;|&nbsp; AI 辅助生成<br/>'
         f'内容仅供参考，不构成投资建议</p>'
@@ -213,6 +215,7 @@ def _alternate_rows(html: str) -> str:
 
         def _alt_tr(tr_m: re.Match) -> str:
             count[0] += 1
+            bg = "#fff" if count[0] % 2 == 1 else _BG_SOFT
             return f'<tr style="background:{bg};">'
 
         def _process_tbody(tb_m: re.Match) -> str:
@@ -236,9 +239,8 @@ def _wrap_h3_cards(html: str) -> str:
     _CARD = (
         "background:rgba(255,255,255,0.75);"  # 半透明白，底层玻璃蓝透出
         "border:1px solid rgba(147,197,253,0.5);"
-        "border-left:4px solid #06b6d4;"
-        "border-radius:0 12px 12px 0;"
-        "padding:16px 18px;"
+        "border-radius:12px;"
+        "padding:14px 16px;"
         "margin:12px 0;"
         "box-shadow:0 2px 16px rgba(30,91,220,0.06);"
     )
@@ -252,3 +254,13 @@ def _wrap_h3_cards(html: str) -> str:
         else:
             out.append(seg)
     return "".join(out)
+
+
+def _remove_empty_list_items(html: str) -> str:
+    """删除仅包含空白/<br>/&nbsp; 的 li，避免渲染出空圆点。"""
+    return re.sub(
+        r"<li\b[^>]*>(?:\s|<br\s*/?>|&nbsp;|&#160;)*</li>",
+        "",
+        html,
+        flags=re.IGNORECASE,
+    )
