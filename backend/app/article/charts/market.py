@@ -542,7 +542,7 @@ def chart_core_plane_market_line(
     output_dir: str,
     filename: str = "core_plane_market_line.png",
 ) -> str:
-    """近7天核心板块总市值折线图（鲸探50 vs 禁出文物）。"""
+    """近7天核心板块总市值折线图（鲸探50 vs 禁出195）。"""
     ensure_dir(output_dir)
     path = os.path.join(output_dir, filename)
     if not core_values_7d:
@@ -577,7 +577,7 @@ def chart_core_plane_market_line(
     line1, = ax.plot(dates, jingtan50, marker="o", linewidth=2.2, markersize=5.5,
                      color=c1, label="鲸探50总市值（亿）", zorder=4)
     line2, = ax.plot(dates, relics, marker="s", linewidth=2.2, markersize=5.5,
-                     color=c2, label="禁出文物总市值（亿）", zorder=4)
+                     color=c2, label="禁出195总市值（亿）", zorder=4)
 
     ymax = max(max(jingtan50, default=0), max(relics, default=0), 1)
     ax.set_ylim(0, ymax * 1.22)

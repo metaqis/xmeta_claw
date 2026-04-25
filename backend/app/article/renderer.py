@@ -257,10 +257,22 @@ def _wrap_h3_cards(html: str) -> str:
 
 
 def _remove_empty_list_items(html: str) -> str:
-    """删除仅包含空白/<br>/&nbsp; 的 li，避免渲染出空圆点。"""
-    return re.sub(
+    """删除仅含空白/<br>/&nbsp; 的 li，并去掉每个 li 尾部多余的 <br>。
+
+    nl2br 扩展会在 <li> 内容末尾也插入 <br>，微信渲染时会产生带圆点的空行。
+    """
+    # 1. 删完全空白的 li
+    html = re.sub(
         r"<li\b[^>]*>(?:\s|<br\s*/?>|&nbsp;|&#160;)*</li>",
         "",
         html,
         flags=re.IGNORECASE,
     )
+    # 2. 去掉 li 内容末尾紧跟 </li> 前的 <br>（nl2br 所产生的）
+    html = re.sub(
+        r"(?:<br\s*/?>)+(\s*</li>)",
+        r"\1",
+        html,
+        flags=re.IGNORECASE,
+    )
+    return html

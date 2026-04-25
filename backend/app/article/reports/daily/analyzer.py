@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, date as date_type
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import select, func, and_, desc, or_
+from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
@@ -386,39 +386,31 @@ async def get_market_snapshot_data(db: AsyncSession, target_date: datetime) -> d
         for r in summary_rows
     ]
 
-    # ── 近7天核心板块总市值（鲸探50 / 禁出文物）──────────────────────────────
+    # ── 近7天核心板块总市值（鲸探50 / 禁出195）──────────────────────────────
     core_dates: list[date_type] = [
         (seven_days_ago + timedelta(days=i)) for i in range(0, 7)
     ]
-    core_plane_rows = (await db.execute(
-        select(MarketPlaneSnapshot)
+    core_top_rows = (await db.execute(
+        select(MarketTopCensus)
         .where(
             and_(
-                MarketPlaneSnapshot.stat_date >= seven_days_ago,
-                MarketPlaneSnapshot.stat_date <= yesterday,
-                or_(
-                    MarketPlaneSnapshot.plane_name.in_(["鲸探50", "鲸探 50", "禁出文物", "禁出195", "禁出 195"]),
-                    MarketPlaneSnapshot.plane_name.like("%鲸探50%"),
-                    MarketPlaneSnapshot.plane_name.like("%禁出%"),
-                ),
+                MarketTopCensus.stat_date >= seven_days_ago,
+                MarketTopCensus.stat_date <= yesterday,
+                MarketTopCensus.top_name.in_(["鲸探50", "禁出195"]),
             )
         )
-        .order_by(MarketPlaneSnapshot.stat_date, MarketPlaneSnapshot.plane_name)
+        .order_by(MarketTopCensus.stat_date, MarketTopCensus.top_name)
     )).scalars().all()
 
     core_value_map: dict[date_type, dict[str, float | None]] = {
         d: {"jingtan50": None, "restricted_relics": None} for d in core_dates
     }
-    for r in core_plane_rows:
-        name = (r.plane_name or "").replace(" ", "")
-        if "鲸探50" in name:
-            old = core_value_map[r.stat_date]["jingtan50"]
-            cur = float(r.total_market_value or 0)
-            core_value_map[r.stat_date]["jingtan50"] = cur if old is None else max(old, cur)
-        elif ("禁出文物" in name) or ("禁出195" in name) or ("禁出" in name):
-            old = core_value_map[r.stat_date]["restricted_relics"]
-            cur = float(r.total_market_value or 0)
-            core_value_map[r.stat_date]["restricted_relics"] = cur if old is None else max(old, cur)
+    for r in core_top_rows:
+        name = r.top_name or ""
+        if name == "鲸探50":
+            core_value_map[r.stat_date]["jingtan50"] = float(r.total_market_amount or 0)
+        elif name == "禁出195":
+            core_value_map[r.stat_date]["restricted_relics"] = float(r.total_market_amount or 0)
 
     core_plane_market_values_7d: list[dict] = [
         {
