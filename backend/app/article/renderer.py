@@ -122,18 +122,19 @@ def markdown_to_wechat_html(markdown_text: str, chart_urls: dict[str, str]) -> s
             f'line-height:1.7;">'
         ),
 
-        # 无序列表 ── 标准 disc bullet
-        "<ul>": (
-            f'<ul style="padding-left:22px;margin:12px 0;">'
-        ),
-        "<ol>": (
-            f'<ol style="padding-left:22px;margin:12px 0;">'
-        ),
+        # 无序/有序列表 ── 用 <p> 模拟，避免微信 <li> 空行 bug
+        "<ul>": "",
+        "</ul>": "",
+        "<ol>": "",
+        "</ol>": "",
         "<li>": (
-            f'<li style="'
+            f'<p style="'
             f'font-size:15px;color:{_TEXT};line-height:1.85;'
-            f'margin:5px 0;">'
+            f'margin:5px 0 5px 1em;'
+            f'text-indent:-1em;">'
+            f'- '
         ),
+        "</li>": "</p>",
 
         # 分隔线 ── 渐变淡出
         "<hr>": (
@@ -157,8 +158,8 @@ def markdown_to_wechat_html(markdown_text: str, chart_urls: dict[str, str]) -> s
     # ── 4. 表格行间色交替 ────────────────────────────────────────────────────
     html = _alternate_rows(html)
 
-    # ── 5. H3 段落卡片化（每个 H3 + 其内容包成一张卡片）────────────────────
-    html = _wrap_h3_cards(html)
+    # ── 5. H3 段落卡片化（已禁用）────────────────────────────────────────────
+    # html = _wrap_h3_cards(html)
 
     # ── 6. 表格外包滚动容器（移动端防撑破 + 卡片边框）────────────────────────
     html = re.sub(
